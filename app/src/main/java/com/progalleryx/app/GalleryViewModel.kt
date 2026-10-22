@@ -19,10 +19,18 @@ data class GalleryState(
 
 class GalleryViewModel(app: Application) : AndroidViewModel(app) {
     private val repository = MediaRepository(app)
+    private val favorites = FavoritesStore(app)
     private val mutable = MutableStateFlow(GalleryState())
     val state = mutable.asStateFlow()
     private var request: Job? = null
     private var generation = 0L
+
+    fun isFavorite(item: GalleryMedia): Boolean = favorites.contains(item.uri)
+
+    fun toggleFavorite(item: GalleryMedia) {
+        favorites.toggle(item.uri)
+        if (mutable.value.filter == MediaFilter.FAVORITES) reload() 
+    }
 
     fun setFilter(filter: MediaFilter) {
         if (mutable.value.filter != filter) reload(filter)
@@ -42,16 +50,19 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
         mutable.value = current.copy(loading = true, error = null)
         request = viewModelScope.launch {
             try {
-                val batch = repository.page(current.items.size, filter = current.filter)
+                val batch = if (current.filter == MediaFilter.FAVORITES) {
+                    // Favorite metadata is local; query a bounded batch of saved items.
+                    repository.page(current.items.size, filter = MediaFilter.ALL)
+                } else repository.page(current.items.size, filter = current.filter)
                 if (token != generation) return@launch
                 // Some Android providers ignore offset arguments. Do not create
                 // an infinite list of repeated items in that situation.
                 val existing = current.items.mapTo(HashSet()) { it.uri }
-                val unique = batch.filter { existing.add(it.uri) }
+                val unique = batch.filter { existing.add(it.uri) && (current.filter != MediaFilter.FAVORITES || favorites.contains(it.uri)) }
                 mutable.value = current.copy(
                     items = current.items + unique,
                     loading = false,
-                    end = batch.size < 80 || unique.isEmpty()
+                    end = batch.size < 80 || (unique.isEmpty() && current.filter != MediaFilter.FAVORITES)
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled
