@@ -52,19 +52,22 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
         request = viewModelScope.launch {
             try {
                 val batch = if (current.filter == MediaFilter.FAVORITES) {
-                    // Favorite metadata is local; query a bounded batch of saved items.
-                    repository.page(current.scanOffset, filter = MediaFilter.ALL)
+                    favorites.savedUris().drop(current.scanOffset).take(80).mapNotNull { uri ->
+                        runCatching {
+                            GalleryMedia(android.content.ContentUris.parseId(uri), uri, uri.pathSegments.contains("video"), 0L)
+                        }.getOrNull()
+                    }
                 } else repository.page(current.scanOffset, filter = current.filter)
                 if (token != generation) return@launch
                 // Some Android providers ignore offset arguments. Do not create
                 // an infinite list of repeated items in that situation.
                 val existing = current.items.mapTo(HashSet()) { it.uri }
-                val unique = batch.filter { existing.add(it.uri) && (current.filter != MediaFilter.FAVORITES || favorites.contains(it.uri)) }
+                val unique = batch.filter { existing.add(it.uri) }
                 mutable.value = current.copy(
                     items = current.items + unique,
                     scanOffset = current.scanOffset + batch.size,
                     loading = false,
-                    end = batch.size < 80 || (unique.isEmpty() && current.filter != MediaFilter.FAVORITES)
+                    end = batch.size < 80 || unique.isEmpty()
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled
