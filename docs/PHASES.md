@@ -8,7 +8,7 @@
 - [x] Photo/video filter chips.
 - [x] Tap photo to preview, open video in external player, share.
 - [x] CI debug APK build workflow.
-- [ ] Verify CI build completion and obtain APK artifact.
+- [x] CI debug APK build completed successfully on 2026-10-23 (run 39857966928, branch ci/phase1-verify-20261023); artifact Pro-Gallery-X-debug uploaded.\n- [ ] Confirm APK install and runtime on a physical Android device.
 - [ ] Test real device startup, permissions, 1k / 10k / 50k / 100k assets.
 - [ ] Albums, favorites, trash and safe deletion.
 - [ ] Screen reader, Arabic RTL and slow-device polish.
