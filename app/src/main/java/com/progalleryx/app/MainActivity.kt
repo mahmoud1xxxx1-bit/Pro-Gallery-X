@@ -64,12 +64,13 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
     val favorites = remember { FavoritesStore(ctx) }
     var selected by remember { mutableStateOf<GalleryMedia?>(null) }
     var favoriteRevision by remember { mutableIntStateOf(0) }
+    var showDetails by remember { mutableStateOf(false) }
     LaunchedEffect(permitted) { if (permitted) vm.reload() }
     MaterialTheme(colorScheme = lightColorScheme(primary = Blue, background = Back, surface = Color.White)) {
         Column(Modifier.fillMaxSize().background(Back)) {
             Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 18.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column { Text("Pro Gallery X", fontWeight = FontWeight.Bold, color = Navy, style = MaterialTheme.typography.headlineSmall); Text("معرضك الخاص • بدون سحابة", color = Color.Gray, style = MaterialTheme.typography.bodySmall) }
-                Icon(Icons.Outlined.PhotoLibrary, contentDescription = null, tint = Blue)
+                IconButton(onClick = { if (permitted) vm.reload() }) { Icon(Icons.Outlined.Refresh, contentDescription = "تحديث المعرض", tint = Blue) }
             }
             if (!permitted) {
                 Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -121,6 +122,11 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                         AsyncImage(model = item.uri, contentDescription = "معاينة الصورة", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp))
                     }
                     val isFavorite = remember(item.uri, favoriteRevision) { favorites.contains(item.uri) }
+                    if (showDetails) {
+                        Text(if (item.video) "النوع: فيديو" else "النوع: صورة", Modifier.padding(horizontal = 12.dp))
+                        Text("المعرف: ${item.id}", Modifier.padding(horizontal = 12.dp))
+                        Text("تاريخ الإضافة: ${java.text.DateFormat.getDateInstance().format(java.util.Date(item.date * 1000L))}", Modifier.padding(horizontal = 12.dp))
+                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         TextButton(onClick = { favorites.toggle(item.uri); favoriteRevision++ }) { Text(if (isFavorite) "★ مفضلة" else "☆ للمفضلة") }
                         TextButton(onClick = {
@@ -131,7 +137,8 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                             val i = Intent(Intent.ACTION_SEND).setType(if (item.video) "video/*" else "image/*").putExtra(Intent.EXTRA_STREAM, item.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             ctx.startActivity(Intent.createChooser(i, "مشاركة"))
                         }) { Text("مشاركة") }
-                        TextButton(onClick = { selected = null }) { Text("إغلاق") }
+                        TextButton(onClick = { showDetails = !showDetails }) { Text("تفاصيل") }
+                        TextButton(onClick = { selected = null; showDetails = false }) { Text("إغلاق") }
                     }
                 }
             }
