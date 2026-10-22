@@ -2,6 +2,7 @@ package com.progalleryx.app
 
 import android.content.Context
 import android.net.Uri
+import android.media.MediaMetadataRetriever
 import androidx.media3.common.MediaItem
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.ExportResult
@@ -19,6 +20,15 @@ import kotlin.coroutines.resumeWithException
 object VideoEditor {
     suspend fun trimToDocument(context: Context, input: Uri, output: Uri, startMs: Long, endMs: Long) {
         require(startMs >= 0 && endMs > startMs && endMs - startMs >= 500) { "Invalid trim window" }
+        withContext(Dispatchers.IO) {
+            val metadata = MediaMetadataRetriever()
+            try {
+                metadata.setDataSource(context, input)
+                val duration = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                    ?: throw IOException("Could not determine video duration")
+                require(endMs <= duration) { "Trim ends after video duration" }
+            } finally { metadata.release() }
+        }
         val temp = File.createTempFile("pgx_trim_", ".mp4", context.cacheDir)
         try {
             withContext(Dispatchers.Main) {
@@ -46,6 +56,7 @@ object VideoEditor {
                     catch (error: Exception) { if (continuation.isActive) continuation.resumeWithException(error) }
                 }
             }
+            if (!temp.exists() || temp.length() == 0L) throw IOException("Video export produced an empty file")
             withContext(Dispatchers.IO) {
                 context.contentResolver.openOutputStream(output, "w")?.use { destination ->
                     temp.inputStream().use { source -> source.copyTo(destination, 256 * 1024) }
