@@ -88,6 +88,10 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                     FilterChip(selected = state.filter == MediaFilter.ALL, onClick = { vm.setFilter(MediaFilter.ALL) }, label = { Text("الكل") })
                     FilterChip(selected = state.filter == MediaFilter.PHOTOS, onClick = { vm.setFilter(MediaFilter.PHOTOS) }, label = { Text("الصور") })
                     FilterChip(selected = state.filter == MediaFilter.VIDEOS, onClick = { vm.setFilter(MediaFilter.VIDEOS) }, label = { Text("الفيديوهات") })
+                    FilterChip(selected = state.filter == MediaFilter.FAVORITES, onClick = { vm.setFilter(MediaFilter.FAVORITES) }, label = { Text("المفضلة") })
+                }
+                LaunchedEffect(state.filter, state.items.size, state.loading, state.end) {
+                    if (state.filter == MediaFilter.FAVORITES && state.items.isEmpty() && !state.loading && !state.end) vm.loadMore()
                 }
                 val gridState = rememberLazyGridState()
                 LaunchedEffect(gridState, state.items.size, state.loading, state.end, state.filter) {
@@ -128,7 +132,7 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                         Text("تاريخ الإضافة: ${java.text.DateFormat.getDateInstance().format(java.util.Date(item.date * 1000L))}", Modifier.padding(horizontal = 12.dp))
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        TextButton(onClick = { favorites.toggle(item.uri); favoriteRevision++ }) { Text(if (isFavorite) "★ مفضلة" else "☆ للمفضلة") }
+                        TextButton(onClick = { vm.toggleFavorite(item); favoriteRevision++ }) { Text(if (isFavorite) "★ مفضلة" else "☆ للمفضلة") }
                         TextButton(onClick = {
                             val i = Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, if (item.video) "video/*" else "image/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             runCatching { ctx.startActivity(i) }
