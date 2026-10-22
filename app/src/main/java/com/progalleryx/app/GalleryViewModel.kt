@@ -12,6 +12,8 @@ import kotlinx.coroutines.launch
 data class GalleryState(
     val items: List<GalleryMedia> = emptyList(),
     val scanOffset: Int = 0,
+    val albums: List<GalleryAlbum> = emptyList(),
+    val albumId: Long? = null,
     val filter: MediaFilter = MediaFilter.ALL,
     val loading: Boolean = false,
     val end: Boolean = false,
@@ -33,14 +35,17 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
         if (mutable.value.filter == MediaFilter.FAVORITES) reload() 
     }
 
+    fun loadAlbums() { viewModelScope.launch { runCatching { repository.albums() }.onSuccess { mutable.value = mutable.value.copy(albums = it) } } }
+    fun setAlbum(albumId: Long?) { reload(album = albumId) }
+
     fun setFilter(filter: MediaFilter) {
         if (mutable.value.filter != filter) reload(filter)
     }
 
-    fun reload(filter: MediaFilter = mutable.value.filter) {
+    fun reload(filter: MediaFilter = mutable.value.filter, album: Long? = mutable.value.albumId) {
         request?.cancel()
         generation++
-        mutable.value = GalleryState(filter = filter)
+        mutable.value = GalleryState(filter = filter, albumId = album, albums = mutable.value.albums)
         loadMore()
     }
 
@@ -57,7 +62,7 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
                             GalleryMedia(android.content.ContentUris.parseId(uri), uri, uri.pathSegments.contains("video"), 0L)
                         }.getOrNull()
                     }
-                } else repository.page(current.scanOffset, filter = current.filter)
+                } else repository.page(current.scanOffset, filter = current.filter, albumId = current.albumId)
                 if (token != generation) return@launch
                 // Some Android providers ignore offset arguments. Do not create
                 // an infinite list of repeated items in that situation.
