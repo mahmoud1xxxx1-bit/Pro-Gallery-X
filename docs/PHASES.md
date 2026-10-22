@@ -22,6 +22,8 @@ Phase 1 is **NOT ACCEPTED** until the missing tasks pass.
 - Multi-clip video editor, trim, split, speed, text, audio, resolution controls.
 - Safe offline export and recovery, thermal/memory constraints.
 
+- [x] Initial on-device Media3 1.11.1 single-video trim and MP4 export; CI #32 passed. Physical playback/output quality tests pending. This is NOT a multitrack editor.
+
 ## Phase 3 — Documents, privacy, lifetime Pro, release
 - [x] Initial local multi-image PDF export (up to 100 images; CI #24; device testing pending).
 - Local image-to-PDF, rearrange pages, merge, PDF scan and tested OCR languages.
