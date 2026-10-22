@@ -19,6 +19,20 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var imageToRotate by remember { mutableStateOf<Uri?>(null) }
     var message by remember { mutableStateOf("كل المعالجة محلية. لن تُعدّل الملفات الأصلية.") }
     var busy by remember { mutableStateOf(false) }
+    var selectedVideo by remember { mutableStateOf<Uri?>(null) }
+    var startSecond by remember { mutableFloatStateOf(0f) }
+    var endSecond by remember { mutableFloatStateOf(10f) }
+    val videoOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { target ->
+        val source = selectedVideo
+        if (source != null && target != null) {
+            busy = true
+            scope.launch {
+                message = runCatching { VideoEditor.trimToDocument(context, source, target, (startSecond * 1000).toLong(), (endSecond * 1000).toLong()); "تم تصدير الفيديو" }.getOrElse { "فشل الفيديو: ${it.localizedMessage}" }
+                busy = false
+            }
+        }
+    }
+    val videoInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedVideo = it }
     var editSource by remember { mutableStateOf<Uri?>(null) }
     var brightness by remember { mutableFloatStateOf(0f) }
     var contrast by remember { mutableFloatStateOf(1f) }
@@ -83,6 +97,15 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         }
         Button(onClick = { pdfInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
             Text("تحويل صور إلى PDF (حتى 100 صورة)")
+        }
+        Button(onClick = { videoInput.launch("video/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("اختيار فيديو لقصه") }
+        if (selectedVideo != null) {
+            Text("بداية المقطع: ${startSecond.toInt()} ثانية")
+            Slider(value = startSecond, onValueChange = { startSecond = it.coerceAtMost(endSecond - 0.5f) }, valueRange = 0f..300f)
+            Text("نهاية المقطع: ${endSecond.toInt()} ثانية")
+            Slider(value = endSecond, onValueChange = { endSecond = it.coerceAtLeast(startSecond + 0.5f) }, valueRange = 1f..301f)
+            Text("تأكد أن النهاية لا تتجاوز مدة الفيديو. يدعم التصدير وفق إمكانات الجهاز.")
+            Button(onClick = { videoOutput.launch("ProGalleryX-trimmed.mp4") }, enabled = !busy) { Text("تصدير مقطع MP4") }
         }
         if (busy) CircularProgressIndicator()
         OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("العودة إلى المعرض") }
