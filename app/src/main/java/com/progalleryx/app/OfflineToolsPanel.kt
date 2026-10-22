@@ -23,6 +23,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var selectedSection by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var pdfLayout by remember { mutableStateOf(PdfLayout.AUTO) }
     var imageToRotate by remember { mutableStateOf<Uri?>(null) }
     var message by remember { mutableStateOf("كل المعالجة محلية. لن تُعدّل الملفات الأصلية.") }
     var busy by remember { mutableStateOf(false) }
@@ -123,9 +124,10 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     val pdfOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { target ->
         if (!busy && target != null && images.isNotEmpty()) {
             val selectedImages = images.toList()
+            val selectedLayout = pdfLayout
             busy = true
             scope.launch {
-                try { OfflineExports.imagesToPdf(context, selectedImages, target); message = "تم تصدير ملف PDF بنجاح" }
+                try { OfflineExports.imagesToPdf(context, selectedImages, target, selectedLayout); message = "تم تصدير ملف PDF بنجاح" }
                 catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                 catch (error: Exception) { message = "تعذر تصدير PDF: ${error.localizedMessage}" }
                 finally { busy = false }
@@ -240,6 +242,12 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 Text("اختيار صفحات PDF (حتى 100 صورة)")
             }
             if (images.isNotEmpty()) {
+                Text("اتجاه الصفحات", style = MaterialTheme.typography.titleSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf(PdfLayout.AUTO to "تلقائي", PdfLayout.PORTRAIT to "عمودي", PdfLayout.LANDSCAPE to "أفقي").forEach { (mode, label) ->
+                        FilterChip(selected = pdfLayout == mode, onClick = { pdfLayout = mode }, label = { Text(label) }, enabled = !busy)
+                    }
+                }
                 Text("صفحات المستند: ${images.size}", style = MaterialTheme.typography.titleMedium)
                 images.take(100).forEachIndexed { index, uri ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
