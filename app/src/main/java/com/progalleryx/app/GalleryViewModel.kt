@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 
 data class GalleryState(
     val items: List<GalleryMedia> = emptyList(),
+    val scanOffset: Int = 0,
     val filter: MediaFilter = MediaFilter.ALL,
     val loading: Boolean = false,
     val end: Boolean = false,
@@ -52,8 +53,8 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val batch = if (current.filter == MediaFilter.FAVORITES) {
                     // Favorite metadata is local; query a bounded batch of saved items.
-                    repository.page(current.items.size, filter = MediaFilter.ALL)
-                } else repository.page(current.items.size, filter = current.filter)
+                    repository.page(current.scanOffset, filter = MediaFilter.ALL)
+                } else repository.page(current.scanOffset, filter = current.filter)
                 if (token != generation) return@launch
                 // Some Android providers ignore offset arguments. Do not create
                 // an infinite list of repeated items in that situation.
@@ -61,6 +62,7 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
                 val unique = batch.filter { existing.add(it.uri) && (current.filter != MediaFilter.FAVORITES || favorites.contains(it.uri)) }
                 mutable.value = current.copy(
                     items = current.items + unique,
+                    scanOffset = current.scanOffset + batch.size,
                     loading = false,
                     end = batch.size < 80 || (unique.isEmpty() && current.filter != MediaFilter.FAVORITES)
                 )
