@@ -22,6 +22,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var selectedVideo by remember { mutableStateOf<Uri?>(null) }
     var startSecond by remember { mutableFloatStateOf(0f) }
     var endSecond by remember { mutableFloatStateOf(10f) }
+    var videoDuration by remember { mutableFloatStateOf(10f) }
     val videoOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { target ->
         val source = selectedVideo
         if (source != null && target != null) {
@@ -32,7 +33,23 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             }
         }
     }
-    val videoInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedVideo = it }
+    val videoInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        selectedVideo = uri
+        if (uri != null) {
+            val retriever = android.media.MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, uri)
+                val seconds = (retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 10000L) / 1000f
+                videoDuration = seconds.coerceAtLeast(1f)
+                startSecond = 0f
+                endSecond = videoDuration
+            } catch (ignored: Exception) {
+                videoDuration = 10f
+                startSecond = 0f
+                endSecond = 10f
+            } finally { retriever.release() }
+        }
+    }
     var editSource by remember { mutableStateOf<Uri?>(null) }
     var brightness by remember { mutableFloatStateOf(0f) }
     var contrast by remember { mutableFloatStateOf(1f) }
@@ -101,9 +118,9 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         Button(onClick = { videoInput.launch("video/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("اختيار فيديو لقصه") }
         if (selectedVideo != null) {
             Text("بداية المقطع: ${startSecond.toInt()} ثانية")
-            Slider(value = startSecond, onValueChange = { startSecond = it.coerceAtMost(endSecond - 0.5f) }, valueRange = 0f..300f)
+            Slider(value = startSecond, onValueChange = { startSecond = it.coerceAtMost(endSecond - 0.5f) }, valueRange = 0f..(videoDuration - 0.5f).coerceAtLeast(0.5f))
             Text("نهاية المقطع: ${endSecond.toInt()} ثانية")
-            Slider(value = endSecond, onValueChange = { endSecond = it.coerceAtLeast(startSecond + 0.5f) }, valueRange = 1f..301f)
+            Slider(value = endSecond, onValueChange = { endSecond = it.coerceAtLeast(startSecond + 0.5f) }, valueRange = 0.5f..videoDuration.coerceAtLeast(1f))
             Text("تأكد أن النهاية لا تتجاوز مدة الفيديو. يدعم التصدير وفق إمكانات الجهاز.")
             Button(onClick = { videoOutput.launch("ProGalleryX-trimmed.mp4") }, enabled = !busy) { Text("تصدير مقطع MP4") }
         }
