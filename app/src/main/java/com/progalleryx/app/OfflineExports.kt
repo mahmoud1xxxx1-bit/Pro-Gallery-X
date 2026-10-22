@@ -40,7 +40,7 @@ object OfflineExports {
             } finally { original.recycle() }
         }
 
-    suspend fun imagesToPdf(context: Context, images: List<Uri>, destination: Uri, layout: PdfLayout = PdfLayout.PORTRAIT): Unit =
+    suspend fun imagesToPdf(context: Context, images: List<Uri>, destination: Uri, layout: PdfLayout = PdfLayout.PORTRAIT, pageNumbers: Boolean = false): Unit =
         withContext(Dispatchers.IO) {
             require(images.isNotEmpty() && images.size <= 100) { "Select 1–100 images" }
             val pdf = PdfDocument()
@@ -66,6 +66,14 @@ object OfflineExports {
                         val top = (pageHeight - bitmap.height * scale) / 2f
                         page.canvas.drawBitmap(bitmap, null,
                             android.graphics.RectF(left, top, left + bitmap.width * scale, top + bitmap.height * scale), null)
+                        if (pageNumbers) {
+                            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                                color = android.graphics.Color.DKGRAY
+                                textAlign = android.graphics.Paint.Align.CENTER
+                                textSize = 11f
+                            }
+                            page.canvas.drawText("${index + 1} / ${images.size}", pageWidth / 2f, pageHeight - 10f, paint)
+                        }
                         pdf.finishPage(page)
                     } finally { bitmap.recycle() }
                 }
