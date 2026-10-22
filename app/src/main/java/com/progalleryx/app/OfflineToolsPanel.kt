@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun OfflineToolsPanel(onClose: () -> Unit) {
     val context = LocalContext.current
+    var selectedSection by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var imageToRotate by remember { mutableStateOf<Uri?>(null) }
@@ -137,8 +138,20 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         if (selected != null) { imageToRotate = selected; rotateOutput.launch("ProGalleryX-rotated.jpg") }
     }
     Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("أدوات Pro Gallery X", style = MaterialTheme.typography.headlineSmall)
+        Text("استوديو Pro Gallery X", style = MaterialTheme.typography.headlineSmall)
+        Text("تحرير محلي • الملفات الأصلية محفوظة", style = MaterialTheme.typography.bodySmall)
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            listOf("الصور", "الفيديو", "PDF").forEachIndexed { index, title ->
+                SegmentedButton(
+                    selected = selectedSection == index,
+                    onClick = { if (!busy) selectedSection = index },
+                    enabled = !busy,
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = 3)
+                ) { Text(title) }
+            }
+        }
         Text(message, style = MaterialTheme.typography.bodyMedium)
+        if (selectedSection == 0) {
         Button(onClick = { editInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("تحرير الإضاءة والتباين والألوان") }
         if (showAdjustments) {
             Text("الإضاءة: ${brightness.toInt()}")
@@ -152,9 +165,17 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         Button(onClick = { rotateInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
             Text("تدوير صورة 90° وتصدير نسخة JPEG")
         }
-        Button(onClick = { pdfInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-            Text("تحويل صور إلى PDF (حتى 100 صورة)")
         }
+        if (selectedSection == 2) {
+            Text("أدوات المستندات", style = MaterialTheme.typography.titleLarge)
+            Text("إنشاء PDF من الصور دون إنترنت")
+            Button(onClick = { pdfInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                Text("تحويل صور إلى PDF (حتى 100 صورة)")
+            }
+        }
+        if (selectedSection == 1) {
+            Text("محرر الفيديو", style = MaterialTheme.typography.titleLarge)
+            Text("قص ودمج المقاطع وتحديد الصوت")
         Button(onClick = { videoInput.launch("video/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("اختيار فيديو لقصه") }
         if (selectedVideo != null) {
             Text("بداية المقطع: ${startSecond.toInt()} ثانية")
@@ -189,6 +210,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 enabled = !busy && clipsToJoin.size in 2..12, modifier = Modifier.fillMaxWidth()) {
                 Text("تصدير الفيديو المدمج")
             }
+        }
         }
         if (busy) CircularProgressIndicator()
         OutlinedButton(onClick = onClose, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("العودة إلى المعرض") }
