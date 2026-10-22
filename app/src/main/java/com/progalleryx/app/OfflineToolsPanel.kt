@@ -143,7 +143,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     }
     val pdfInput = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { selected ->
         images = selected.take(100)
-        if (images.isNotEmpty()) pdfOutput.launch("ProGalleryX.pdf")
+        message = if (images.isNotEmpty()) "رتّب صور المستند ثم اختر تصدير PDF" else "اختر صورة واحدة على الأقل"
     }
     val rotateInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selected ->
         if (selected != null) { imageToRotate = selected; rotateOutput.launch("ProGalleryX-rotated.jpg") }
@@ -221,7 +221,30 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Text("أدوات المستندات", style = MaterialTheme.typography.titleLarge)
             Text("إنشاء PDF من الصور دون إنترنت")
             Button(onClick = { pdfInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-                Text("تحويل صور إلى PDF (حتى 100 صورة)")
+                Text("اختيار صفحات PDF (حتى 100 صورة)")
+            }
+            if (images.isNotEmpty()) {
+                Text("صفحات المستند: ${images.size}", style = MaterialTheme.typography.titleMedium)
+                images.take(100).forEachIndexed { index, uri ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("الصفحة ${index + 1}", Modifier.weight(1f))
+                        TextButton(onClick = {
+                            val copy = images.toMutableList()
+                            val selected = copy.removeAt(index)
+                            copy.add(index - 1, selected)
+                            images = copy
+                        }, enabled = !busy && index > 0) { Text("↑") }
+                        TextButton(onClick = {
+                            val copy = images.toMutableList()
+                            val selected = copy.removeAt(index)
+                            copy.add(index + 1, selected)
+                            images = copy
+                        }, enabled = !busy && index < images.lastIndex) { Text("↓") }
+                        TextButton(onClick = { images = images.filterIndexed { position, _ -> position != index } }, enabled = !busy) { Text("حذف") }
+                    }
+                }
+                Button(onClick = { pdfOutput.launch("ProGalleryX.pdf") },
+                    enabled = !busy && images.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("تصدير PDF بالترتيب المحدد") }
             }
         }
         if (selectedSection == 1) {
