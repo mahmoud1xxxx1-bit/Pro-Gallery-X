@@ -27,6 +27,7 @@ class MediaRepository(private val context: Context) {
                 MediaFilter.PHOTOS -> "$typeColumn = ?" to arrayOf(images.toString())
                 MediaFilter.VIDEOS -> "$typeColumn = ?" to arrayOf(videos.toString())
                 MediaFilter.FAVORITES -> "$typeColumn IN (?, ?)" to arrayOf(images.toString(), videos.toString())
+                MediaFilter.FAVORITES -> "$typeColumn IN (?, ?)" to arrayOf(images.toString(), videos.toString())
             }
             val args = Bundle().apply {
                 putString(ContentResolver.QUERY_ARG_SQL_SELECTION, where)
