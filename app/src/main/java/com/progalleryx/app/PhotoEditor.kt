@@ -7,18 +7,19 @@ import android.graphics.Canvas
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
+import android.graphics.Matrix
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
-data class PhotoAdjustments(val brightness: Float = 0f, val contrast: Float = 1f, val saturation: Float = 1f)
+data class PhotoAdjustments(val brightness: Float = 0f, val contrast: Float = 1f, val saturation: Float = 1f, val rotation: Int = 0, val flipHorizontal: Boolean = false)
 
 /** Offline JPEG export. Source URI is read-only; destination must be a newly selected document. */
 object PhotoEditor {
     suspend fun export(context: Context, source: Uri, destination: Uri, settings: PhotoAdjustments) =
         withContext(Dispatchers.IO) {
-            require(settings.brightness in -100f..100f && settings.contrast in 0.5f..1.5f && settings.saturation in 0f..2f)
+            require(settings.brightness in -100f..100f && settings.contrast in 0.5f..1.5f && settings.saturation in 0f..2f && settings.rotation in listOf(0, 90, 180, 270))
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             context.contentResolver.openInputStream(source)?.use { BitmapFactory.decodeStream(it, null, bounds) }
                 ?: throw IOException("Unable to open image")
@@ -30,7 +31,12 @@ object PhotoEditor {
             val bitmap = context.contentResolver.openInputStream(source)?.use { BitmapFactory.decodeStream(it, null, opts) }
                 ?: throw IOException("Cannot decode image")
             try {
-                val output = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+                val transform = Matrix().apply {
+                    if (settings.flipHorizontal) postScale(-1f, 1f)
+                    postRotate(settings.rotation.toFloat())
+                }
+                val transformed = if (settings.rotation != 0 || settings.flipHorizontal) Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, transform, true) else bitmap
+                val output = Bitmap.createBitmap(transformed.width, transformed.height, Bitmap.Config.ARGB_8888)
                 try {
                     val colors = ColorMatrix().apply { setSaturation(settings.saturation) }
                     val contrast = settings.contrast
@@ -41,13 +47,13 @@ object PhotoEditor {
                         0f, 0f, contrast, 0f, offset,
                         0f, 0f, 0f, 1f, 0f
                     )))
-                    Canvas(output).drawBitmap(bitmap, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG).apply {
+                    Canvas(output).drawBitmap(transformed, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG).apply {
                         colorFilter = ColorMatrixColorFilter(colors)
                     })
                     context.contentResolver.openOutputStream(destination, "w")?.use { stream ->
                         if (!output.compress(Bitmap.CompressFormat.JPEG, 92, stream)) throw IOException("Export failed")
                     } ?: throw IOException("Output permission denied")
-                } finally { output.recycle() }
+                } finally { output.recycle(); if (transformed !== bitmap) transformed.recycle() }
             } finally { bitmap.recycle() }
         }
 }
