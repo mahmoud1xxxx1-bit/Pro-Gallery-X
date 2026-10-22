@@ -59,8 +59,10 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
         else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
     var permitted by remember { mutableStateOf(needed.any { ctx.checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED }) }
+    var partialAccess by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         permitted = needed.any { p -> ctx.checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+        partialAccess = Build.VERSION.SDK_INT >= 34 && ctx.checkSelfPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == android.content.pm.PackageManager.PERMISSION_GRANTED && ctx.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != android.content.pm.PackageManager.PERMISSION_GRANTED
         if (permitted) vm.reload()
     }
     val favorites = remember { FavoritesStore(ctx) }
@@ -68,6 +70,10 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
     var favoriteRevision by remember { mutableIntStateOf(0) }
     var showDetails by remember { mutableStateOf(false) }
     var showTools by remember { mutableStateOf(false) }
+    var pickedMedia by remember { mutableStateOf<List<GalleryMedia>>(emptyList()) }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { picked ->
+        pickedMedia = picked.mapIndexed { i, uri -> GalleryMedia(-1L - i, uri, false, 0L) }
+    }
     var pendingTrash by remember { mutableStateOf<GalleryMedia?>(null) }
     val trashLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) { selected = null; pendingTrash = null; vm.reload() }
@@ -77,8 +83,8 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
         if (showTools) {
             OfflineToolsPanel(onClose = { showTools = false })
         } else Column(Modifier.fillMaxSize().background(Back)) {
-            Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 18.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column { Text("Pro Gallery X", fontWeight = FontWeight.Bold, color = Navy, style = MaterialTheme.typography.headlineSmall); Text("معرضك الخاص • بدون سحابة", color = Color.Gray, style = MaterialTheme.typography.bodySmall) }
+            Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Text("Pro Gallery X", fontWeight = FontWeight.Bold, color = Navy, style = MaterialTheme.typography.titleLarge); Text("ذكرياتك، على هاتفك", color = Color.Gray, style = MaterialTheme.typography.labelSmall) }
                 TextButton(onClick = { showTools = true }) { Text("الأدوات") }
                 IconButton(onClick = { if (permitted) vm.reload() }) { Icon(Icons.Outlined.Refresh, contentDescription = "تحديث المعرض", tint = Blue) }
             }
@@ -94,11 +100,15 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                 }
             } else {
                 Text("الصور والفيديوهات", Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = Navy)
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = state.filter == MediaFilter.ALL, onClick = { vm.setFilter(MediaFilter.ALL) }, label = { Text("الكل") })
                     FilterChip(selected = state.filter == MediaFilter.PHOTOS, onClick = { vm.setFilter(MediaFilter.PHOTOS) }, label = { Text("الصور") })
                     FilterChip(selected = state.filter == MediaFilter.VIDEOS, onClick = { vm.setFilter(MediaFilter.VIDEOS) }, label = { Text("الفيديوهات") })
                     FilterChip(selected = state.filter == MediaFilter.FAVORITES, onClick = { vm.setFilter(MediaFilter.FAVORITES) }, label = { Text("المفضلة") })
+                }
+                if (partialAccess) {
+                    Text("الوصول محدود للصور المختارة فقط. يمكنك توسيع الإذن من إعدادات التطبيق.", color = Blue, modifier = Modifier.padding(horizontal = 16.dp))
+                    TextButton(onClick = { launcher.launch(needed) }) { Text("تحديث إذن الصور") }
                 }
                 LaunchedEffect(state.filter, state.items.size, state.loading, state.end) {
                     if (state.filter == MediaFilter.FAVORITES && state.items.isEmpty() && !state.loading && !state.end) vm.loadMore()
@@ -137,7 +147,20 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                     }
                     if (state.loading) item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
                     if (state.error != null) item(span = { GridItemSpan(maxLineSpan) }) { Text(state.error ?: "", Modifier.clickable { vm.loadMore() }.padding(18.dp), color = Color.Red) }
-                    if (state.end && state.items.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Text("لا توجد ملفات متاحة", Modifier.padding(24.dp)) }
+                    if (state.end && state.items.isEmpty() && pickedMedia.isNotEmpty()) {
+                        itemsIndexed(pickedMedia, key = { _, item -> item.id }) { _, item ->
+                            AsyncImage(model = item.uri, contentDescription = "صورة مختارة", modifier = Modifier.aspectRatio(1f).clickable { selected = item }, contentScale = ContentScale.Crop)
+                        }
+                    }
+                    if (state.end && state.items.isEmpty() && pickedMedia.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                        Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Outlined.PhotoLibrary, contentDescription = null, tint = Blue, modifier = Modifier.size(56.dp))
+                            Text(if (state.filter == MediaFilter.FAVORITES) "لم تضف صورًا للمفضلة بعد" else "لم نجد صورًا في هذا القسم", style = MaterialTheme.typography.titleMedium)
+                            Text("قد لا يحتوي الجهاز على صور، أو قد يكون إذن الوصول محدودًا.", color = Color.Gray)
+                            OutlinedButton(onClick = { launcher.launch(needed) }) { Text("مراجعة إذن الوصول") }
+                            TextButton(onClick = { photoPicker.launch("image/*") }) { Text("اختيار صور من الهاتف") }
+                        }
+                    }
                 }
             }
         }
