@@ -1,0 +1,33 @@
+# Delivery plan — Pro Gallery X
+
+## Phase 1 — Native gallery (current)
+- [x] Native Kotlin + Compose application foundation.
+- [x] No user-media uploads or cloud dependencies.
+- [x] MediaStore image/video access with runtime permission request.
+- [x] Incremental MediaStore query, bounded thumbnails.
+- [x] Photo/video filter chips.
+- [x] Tap photo to preview, open video in external player, share.
+- [x] CI debug APK build workflow.
+- [ ] Verify CI build completion and obtain APK artifact.
+- [ ] Test real device startup, permissions, 1k / 10k / 50k / 100k assets.
+- [ ] Albums, favorites, trash and safe deletion.
+- [ ] Screen reader, Arabic RTL and slow-device polish.
+
+Phase 1 is **NOT ACCEPTED** until the missing tasks pass.
+
+## Phase 2 — Photo and video editors
+- Non-destructive edit history, crop, rotate, tone, HSL, curves, text and batch exports.
+- Multi-clip video editor, trim, split, speed, text, audio, resolution controls.
+- Safe offline export and recovery, thermal/memory constraints.
+
+## Phase 3 — Documents, privacy, lifetime Pro, release
+- Local image-to-PDF, rearrange pages, merge, PDF scan and tested OCR languages.
+- Encrypted private vault and duplicate detection with user-approved deletion.
+- Lifetime, non-consumable Google Play purchase; verify/recover entitlement.
+- Accessibility, device matrix testing, privacy declaration, signed AAB and store listing.
+
+## Non-negotiable constraints
+No server for media; no recurring per-user image/video processing fees.
+No ads SDK, no third-party photo tracking. Originals never overwritten automatically.
+Do not market a module as finished before functional tests pass.
+All third-party libraries and ML models require commercially compatible licensing.
