@@ -14,6 +14,8 @@ import java.io.IOException
  * First offline export tools. Media originals are read-only and never overwritten.
  * Decode limits deliberately bound memory usage on large camera photos.
  */
+enum class PdfLayout { PORTRAIT, LANDSCAPE, AUTO }
+
 object OfflineExports {
     suspend fun rotateAndSave(context: Context, source: Uri, destination: Uri): Unit =
         withContext(Dispatchers.IO) {
@@ -38,7 +40,7 @@ object OfflineExports {
             } finally { original.recycle() }
         }
 
-    suspend fun imagesToPdf(context: Context, images: List<Uri>, destination: Uri): Unit =
+    suspend fun imagesToPdf(context: Context, images: List<Uri>, destination: Uri, layout: PdfLayout = PdfLayout.PORTRAIT): Unit =
         withContext(Dispatchers.IO) {
             require(images.isNotEmpty() && images.size <= 100) { "Select 1–100 images" }
             val pdf = PdfDocument()
@@ -55,10 +57,13 @@ object OfflineExports {
                         BitmapFactory.decodeStream(it, null, options)
                     } ?: throw IOException("Cannot decode image ${index + 1}")
                     try {
-                        val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, index + 1).create())
-                        val scale = minOf(555f / bitmap.width, 802f / bitmap.height)
-                        val left = (595f - bitmap.width * scale) / 2f
-                        val top = (842f - bitmap.height * scale) / 2f
+                        val landscape = layout == PdfLayout.LANDSCAPE || (layout == PdfLayout.AUTO && bitmap.width > bitmap.height)
+                        val pageWidth = if (landscape) 842 else 595
+                        val pageHeight = if (landscape) 595 else 842
+                        val page = pdf.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, index + 1).create())
+                        val scale = minOf((pageWidth - 40f) / bitmap.width, (pageHeight - 40f) / bitmap.height)
+                        val left = (pageWidth - bitmap.width * scale) / 2f
+                        val top = (pageHeight - bitmap.height * scale) / 2f
                         page.canvas.drawBitmap(bitmap, null,
                             android.graphics.RectF(left, top, left + bitmap.width * scale, top + bitmap.height * scale), null)
                         pdf.finishPage(page)
