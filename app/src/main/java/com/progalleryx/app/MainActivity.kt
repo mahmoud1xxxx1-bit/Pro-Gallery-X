@@ -30,6 +30,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import android.content.Intent
+import android.provider.MediaStore
+import android.app.Activity
 import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -65,6 +67,10 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
     var selected by remember { mutableStateOf<GalleryMedia?>(null) }
     var favoriteRevision by remember { mutableIntStateOf(0) }
     var showDetails by remember { mutableStateOf(false) }
+    var pendingTrash by remember { mutableStateOf<GalleryMedia?>(null) }
+    val trashLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) { selected = null; pendingTrash = null; vm.reload() }
+    }
     LaunchedEffect(permitted) { if (permitted) vm.reload() }
     MaterialTheme(colorScheme = lightColorScheme(primary = Blue, background = Back, surface = Color.White)) {
         Column(Modifier.fillMaxSize().background(Back)) {
@@ -117,6 +123,20 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                 }
             }
         }
+        pendingTrash?.let { item ->
+            AlertDialog(onDismissRequest = { pendingTrash = null }, title = { Text("نقل إلى سلة المحذوفات؟") },
+                text = { Text("سيطلب أندرويد موافقتك قبل نقل الملف إلى السلة. لن يتم حذفه نهائيًا هنا.") },
+                confirmButton = { TextButton(onClick = {
+                    pendingTrash = null
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        runCatching {
+                            val request = MediaStore.createTrashRequest(ctx.contentResolver, listOf(item.uri), true)
+                            trashLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(request.intentSender).build())
+                        }
+                    }
+                }) { Text("متابعة") } },
+                dismissButton = { TextButton(onClick = { pendingTrash = null }) { Text("إلغاء") } })
+        }
         selected?.let { item ->
             Dialog(onDismissRequest = { selected = null }) {
                 Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(12.dp)) {
@@ -141,6 +161,9 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                             val i = Intent(Intent.ACTION_SEND).setType(if (item.video) "video/*" else "image/*").putExtra(Intent.EXTRA_STREAM, item.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             ctx.startActivity(Intent.createChooser(i, "مشاركة"))
                         }) { Text("مشاركة") }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            TextButton(onClick = { pendingTrash = item }) { Text("إلى السلة") }
+                        }
                         TextButton(onClick = { showDetails = !showDetails }) { Text("تفاصيل") }
                         TextButton(onClick = { selected = null; showDetails = false }) { Text("إغلاق") }
                     }
