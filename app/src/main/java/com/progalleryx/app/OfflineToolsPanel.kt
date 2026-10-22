@@ -25,6 +25,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var pdfLayout by remember { mutableStateOf(PdfLayout.AUTO) }
+    var pdfPageNumbers by remember { mutableStateOf(false) }
     var imageToRotate by remember { mutableStateOf<Uri?>(null) }
     var message by remember { mutableStateOf("كل المعالجة محلية. لن تُعدّل الملفات الأصلية.") }
     var busy by remember { mutableStateOf(false) }
@@ -131,9 +132,10 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         if (!busy && target != null && images.isNotEmpty()) {
             val selectedImages = images.toList()
             val selectedLayout = pdfLayout
+            val includeNumbers = pdfPageNumbers
             busy = true
             scope.launch {
-                try { OfflineExports.imagesToPdf(context, selectedImages, target, selectedLayout); message = "تم تصدير ملف PDF بنجاح" }
+                try { OfflineExports.imagesToPdf(context, selectedImages, target, selectedLayout, includeNumbers); message = "تم تصدير ملف PDF بنجاح" }
                 catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                 catch (error: Exception) { message = "تعذر تصدير PDF: ${error.localizedMessage}" }
                 finally { busy = false }
@@ -253,6 +255,10 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     listOf(PdfLayout.AUTO to "تلقائي", PdfLayout.PORTRAIT to "عمودي", PdfLayout.LANDSCAPE to "أفقي").forEach { (mode, label) ->
                         FilterChip(selected = pdfLayout == mode, onClick = { pdfLayout = mode }, label = { Text(label) }, enabled = !busy)
                     }
+                }
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Checkbox(checked = pdfPageNumbers, onCheckedChange = { pdfPageNumbers = it }, enabled = !busy)
+                    Text("ترقيم صفحات المستند")
                 }
                 Text("صفحات المستند: ${images.size}", style = MaterialTheme.typography.titleMedium)
                 images.take(100).forEachIndexed { index, uri ->
