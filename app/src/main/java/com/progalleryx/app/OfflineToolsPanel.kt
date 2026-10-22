@@ -24,10 +24,18 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var clipsToJoin by remember { mutableStateOf<List<Uri>>(emptyList()) }
     val joinOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { dest ->
         if (!busy && dest != null && clipsToJoin.size in 2..12) {
+            val orderedClips = clipsToJoin.toList()
             busy = true
             scope.launch {
-                message = runCatching { MultiClipEditor.export(context, clipsToJoin, dest); "تم دمج المقاطع" }.getOrElse { "فشل دمج المقاطع: ${it.localizedMessage}" }
-                busy = false
+                try {
+                    MultiClipEditor.export(context, orderedClips, dest)
+                    message = "تم دمج المقاطع"
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    message = "أُلغي تصدير الفيديو"
+                    throw cancelled
+                } catch (error: Exception) {
+                    message = "فشل دمج المقاطع: ${error.localizedMessage}"
+                } finally { busy = false }
             }
         }
     }
@@ -41,11 +49,21 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var videoDuration by remember { mutableFloatStateOf(10f) }
     val videoOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { target ->
         val source = selectedVideo
-        if (source != null && target != null) {
+        if (!busy && source != null && target != null) {
+            val startMs = (startSecond * 1000).toLong()
+            val endMs = (endSecond * 1000).toLong()
+            val removeAudio = muteVideoAudio
             busy = true
             scope.launch {
-                message = runCatching { VideoEditor.trimToDocument(context, source, target, (startSecond * 1000).toLong(), (endSecond * 1000).toLong(), muteVideoAudio); "تم تصدير الفيديو" }.getOrElse { "فشل الفيديو: ${it.localizedMessage}" }
-                busy = false
+                try {
+                    VideoEditor.trimToDocument(context, source, target, startMs, endMs, removeAudio)
+                    message = "تم تصدير الفيديو"
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    message = "أُلغي تصدير الفيديو"
+                    throw cancelled
+                } catch (error: Exception) {
+                    message = "فشل الفيديو: ${error.localizedMessage}"
+                } finally { busy = false }
             }
         }
     }
@@ -73,11 +91,14 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var showAdjustments by remember { mutableStateOf(false) }
     val editedOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { target ->
         val source = editSource
-        if (target != null && source != null) {
+        if (!busy && target != null && source != null) {
+            val adjustments = PhotoAdjustments(brightness, contrast, saturation)
             busy = true
             scope.launch {
-                message = runCatching { PhotoEditor.export(context, source, target, PhotoAdjustments(brightness, contrast, saturation)); "تم تصدير الصورة بنجاح" }.getOrElse { "فشل التصدير: ${it.localizedMessage}" }
-                busy = false
+                try { PhotoEditor.export(context, source, target, adjustments); message = "تم تصدير الصورة بنجاح" }
+                catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (error: Exception) { message = "فشل التصدير: ${error.localizedMessage}" }
+                finally { busy = false }
             }
         }
     }
@@ -85,23 +106,26 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         if (uri != null) { editSource = uri; showAdjustments = true }
     }
     val pdfOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { target ->
-        if (target != null && images.isNotEmpty()) {
+        if (!busy && target != null && images.isNotEmpty()) {
+            val selectedImages = images.toList()
             busy = true
             scope.launch {
-                message = runCatching { OfflineExports.imagesToPdf(context, images, target); "تم تصدير ملف PDF بنجاح" }
-                    .getOrElse { "تعذر تصدير PDF: ${it.localizedMessage}" }
-                busy = false
+                try { OfflineExports.imagesToPdf(context, selectedImages, target); message = "تم تصدير ملف PDF بنجاح" }
+                catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (error: Exception) { message = "تعذر تصدير PDF: ${error.localizedMessage}" }
+                finally { busy = false }
             }
         }
     }
     val rotateOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { target ->
         val source = imageToRotate
-        if (target != null && source != null) {
+        if (!busy && target != null && source != null) {
             busy = true
             scope.launch {
-                message = runCatching { OfflineExports.rotateAndSave(context, source, target); "تم حفظ الصورة المعدلة" }
-                    .getOrElse { "تعذر تعديل الصورة: ${it.localizedMessage}" }
-                busy = false
+                try { OfflineExports.rotateAndSave(context, source, target); message = "تم حفظ الصورة المعدلة" }
+                catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (error: Exception) { message = "تعذر تعديل الصورة: ${error.localizedMessage}" }
+                finally { busy = false }
             }
         }
     }
@@ -167,6 +191,6 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             }
         }
         if (busy) CircularProgressIndicator()
-        OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("العودة إلى المعرض") }
+        OutlinedButton(onClick = onClose, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("العودة إلى المعرض") }
     }
 }
