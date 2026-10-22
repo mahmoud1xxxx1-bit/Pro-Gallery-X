@@ -7,6 +7,7 @@ import android.net.Uri
 class FavoritesStore(context: Context) {
     private val preferences = context.getSharedPreferences("gallery_favorites", Context.MODE_PRIVATE)
     fun contains(uri: Uri): Boolean = preferences.getBoolean(uri.toString(), false)
+    fun savedUris(): List<Uri> = preferences.all.filterValues { it == true }.keys.map { Uri.parse(it) }
     fun toggle(uri: Uri): Boolean {
         val next = !contains(uri)
         preferences.edit().putBoolean(uri.toString(), next).apply()
