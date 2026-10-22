@@ -61,7 +61,9 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
         permitted = needed.any { p -> ctx.checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED }
         if (permitted) vm.reload()
     }
+    val favorites = remember { FavoritesStore(ctx) }
     var selected by remember { mutableStateOf<GalleryMedia?>(null) }
+    var favoriteRevision by remember { mutableIntStateOf(0) }
     LaunchedEffect(permitted) { if (permitted) vm.reload() }
     MaterialTheme(colorScheme = lightColorScheme(primary = Blue, background = Back, surface = Color.White)) {
         Column(Modifier.fillMaxSize().background(Back)) {
@@ -118,7 +120,9 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                     } else {
                         AsyncImage(model = item.uri, contentDescription = "معاينة الصورة", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp))
                     }
+                    val isFavorite = remember(item.uri, favoriteRevision) { favorites.contains(item.uri) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        TextButton(onClick = { favorites.toggle(item.uri); favoriteRevision++ }) { Text(if (isFavorite) "★ مفضلة" else "☆ للمفضلة") }
                         TextButton(onClick = {
                             val i = Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, if (item.video) "video/*" else "image/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             runCatching { ctx.startActivity(i) }
