@@ -9,9 +9,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.graphicsLayer
 import coil.compose.AsyncImage
 import androidx.compose.material3.*
@@ -291,6 +288,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     factory = { ctx -> android.widget.VideoView(ctx).apply {
                         setVideoURI(selectedVideo)
                         setOnPreparedListener { player -> player.isLooping = false }
+                        setOnClickListener { if (isPlaying) pause() else start() }
                     } },
                     update = { view -> if (view.tag != selectedVideo) { view.setVideoURI(selectedVideo); view.tag = selectedVideo } },
                     modifier = Modifier.fillMaxWidth().height(220.dp)
