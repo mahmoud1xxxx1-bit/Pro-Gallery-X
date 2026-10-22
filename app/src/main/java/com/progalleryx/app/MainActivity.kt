@@ -81,8 +81,13 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                 }
             } else {
                 Text("الصور والفيديوهات", Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = Navy)
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = state.filter == MediaFilter.ALL, onClick = { vm.setFilter(MediaFilter.ALL) }, label = { Text("الكل") })
+                    FilterChip(selected = state.filter == MediaFilter.PHOTOS, onClick = { vm.setFilter(MediaFilter.PHOTOS) }, label = { Text("الصور") })
+                    FilterChip(selected = state.filter == MediaFilter.VIDEOS, onClick = { vm.setFilter(MediaFilter.VIDEOS) }, label = { Text("الفيديوهات") })
+                }
                 val gridState = rememberLazyGridState()
-                LaunchedEffect(gridState, state.items.size, state.loading, state.end) {
+                LaunchedEffect(gridState, state.items.size, state.loading, state.end, state.filter) {
                     snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collectLatest { last ->
                         if (state.items.isNotEmpty() && last >= state.items.lastIndex - 18 && !state.loading && !state.end) vm.loadMore()
                     }
