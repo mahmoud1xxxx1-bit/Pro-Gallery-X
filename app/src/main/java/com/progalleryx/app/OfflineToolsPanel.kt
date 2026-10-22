@@ -22,7 +22,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var selectedVideo by remember { mutableStateOf<Uri?>(null) }
     var clipsToJoin by remember { mutableStateOf<List<Uri>>(emptyList()) }
     val joinOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { dest ->
-        if (dest != null && clipsToJoin.size in 2..12) {
+        if (!busy && dest != null && clipsToJoin.size in 2..12) {
             busy = true
             scope.launch {
                 message = runCatching { MultiClipEditor.export(context, clipsToJoin, dest); "تم دمج المقاطع" }.getOrElse { "فشل دمج المقاطع: ${it.localizedMessage}" }
@@ -32,8 +32,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     }
     val joinInput = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { selected ->
         clipsToJoin = selected.take(12)
-        if (clipsToJoin.size in 2..12) joinOutput.launch("ProGalleryX-joined.mp4")
-        else message = "اختر مقطعين على الأقل"
+        message = if (clipsToJoin.size in 2..12) "رتّب المقاطع ثم صدّر الفيديو" else "اختر مقطعين على الأقل"
     }
     var muteVideoAudio by remember { mutableStateOf(false) }
     var startSecond by remember { mutableFloatStateOf(0f) }
@@ -112,7 +111,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     val rotateInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selected ->
         if (selected != null) { imageToRotate = selected; rotateOutput.launch("ProGalleryX-rotated.jpg") }
     }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("أدوات Pro Gallery X", style = MaterialTheme.typography.headlineSmall)
         Text(message, style = MaterialTheme.typography.bodyMedium)
         Button(onClick = { editInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("تحرير الإضاءة والتباين والألوان") }
@@ -142,6 +141,30 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Button(onClick = { videoOutput.launch("ProGalleryX-trimmed.mp4") }, enabled = !busy) { Text("تصدير مقطع MP4") }
         }
         Button(onClick = { joinInput.launch("video/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("دمج مقاطع فيديو (2–12)") }
+        if (clipsToJoin.isNotEmpty()) {
+            Text("ترتيب المقاطع", style = MaterialTheme.typography.titleMedium)
+            clipsToJoin.forEachIndexed { index, uri ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("المقطع ${index + 1}", modifier = Modifier.weight(1f))
+                    TextButton(onClick = {
+                        val clips = clipsToJoin.toMutableList()
+                        val item = clips.removeAt(index)
+                        clips.add(index - 1, item)
+                        clipsToJoin = clips
+                    }, enabled = !busy && index > 0) { Text("↑") }
+                    TextButton(onClick = {
+                        val clips = clipsToJoin.toMutableList()
+                        val item = clips.removeAt(index)
+                        clips.add(index + 1, item)
+                        clipsToJoin = clips
+                    }, enabled = !busy && index < clipsToJoin.lastIndex) { Text("↓") }
+                }
+            }
+            Button(onClick = { joinOutput.launch("ProGalleryX-joined.mp4") },
+                enabled = !busy && clipsToJoin.size in 2..12, modifier = Modifier.fillMaxWidth()) {
+                Text("تصدير الفيديو المدمج")
+            }
+        }
         if (busy) CircularProgressIndicator()
         OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("العودة إلى المعرض") }
     }
