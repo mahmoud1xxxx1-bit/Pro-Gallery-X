@@ -18,7 +18,7 @@ import kotlin.coroutines.resumeWithException
 
 /** Single-clip on-device export; originals are always read-only. */
 object VideoEditor {
-    suspend fun trimToDocument(context: Context, input: Uri, output: Uri, startMs: Long, endMs: Long) {
+    suspend fun trimToDocument(context: Context, input: Uri, output: Uri, startMs: Long, endMs: Long, muteAudio: Boolean = false) {
         require(startMs >= 0 && endMs > startMs && endMs - startMs >= 500) { "Invalid trim window" }
         withContext(Dispatchers.IO) {
             val metadata = MediaMetadataRetriever()
@@ -41,7 +41,7 @@ object VideoEditor {
                                 .setEndPositionMs(endMs)
                                 .build()
                         ).build()
-                    val editor = EditedMediaItem.Builder(clip).build()
+                    val editor = EditedMediaItem.Builder(clip).setRemoveAudio(muteAudio).build()
                     val transformer = Transformer.Builder(context)
                         .addListener(object : Transformer.Listener {
                             override fun onCompleted(composition: androidx.media3.transformer.Composition, exportResult: ExportResult) {

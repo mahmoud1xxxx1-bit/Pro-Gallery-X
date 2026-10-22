@@ -20,6 +20,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var message by remember { mutableStateOf("كل المعالجة محلية. لن تُعدّل الملفات الأصلية.") }
     var busy by remember { mutableStateOf(false) }
     var selectedVideo by remember { mutableStateOf<Uri?>(null) }
+    var muteVideoAudio by remember { mutableStateOf(false) }
     var startSecond by remember { mutableFloatStateOf(0f) }
     var endSecond by remember { mutableFloatStateOf(10f) }
     var videoDuration by remember { mutableFloatStateOf(10f) }
@@ -28,7 +29,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         if (source != null && target != null) {
             busy = true
             scope.launch {
-                message = runCatching { VideoEditor.trimToDocument(context, source, target, (startSecond * 1000).toLong(), (endSecond * 1000).toLong()); "تم تصدير الفيديو" }.getOrElse { "فشل الفيديو: ${it.localizedMessage}" }
+                message = runCatching { VideoEditor.trimToDocument(context, source, target, (startSecond * 1000).toLong(), (endSecond * 1000).toLong(), muteVideoAudio); "تم تصدير الفيديو" }.getOrElse { "فشل الفيديو: ${it.localizedMessage}" }
                 busy = false
             }
         }
@@ -121,6 +122,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Slider(value = startSecond, onValueChange = { startSecond = it.coerceAtMost(endSecond - 0.5f) }, valueRange = 0f..(videoDuration - 0.5f).coerceAtLeast(0.5f))
             Text("نهاية المقطع: ${endSecond.toInt()} ثانية")
             Slider(value = endSecond, onValueChange = { endSecond = it.coerceAtLeast(startSecond + 0.5f) }, valueRange = 0.5f..videoDuration.coerceAtLeast(1f))
+            Row { Checkbox(checked = muteVideoAudio, onCheckedChange = { muteVideoAudio = it }); Text("تصدير بدون صوت") }
             Text("تأكد أن النهاية لا تتجاوز مدة الفيديو. يدعم التصدير وفق إمكانات الجهاز.")
             Button(onClick = { videoOutput.launch("ProGalleryX-trimmed.mp4") }, enabled = !busy) { Text("تصدير مقطع MP4") }
         }
