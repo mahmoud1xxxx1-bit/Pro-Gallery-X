@@ -20,6 +20,21 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var message by remember { mutableStateOf("كل المعالجة محلية. لن تُعدّل الملفات الأصلية.") }
     var busy by remember { mutableStateOf(false) }
     var selectedVideo by remember { mutableStateOf<Uri?>(null) }
+    var clipsToJoin by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    val joinOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { dest ->
+        if (dest != null && clipsToJoin.size in 2..12) {
+            busy = true
+            scope.launch {
+                message = runCatching { MultiClipEditor.export(context, clipsToJoin, dest); "تم دمج المقاطع" }.getOrElse { "فشل دمج المقاطع: ${it.localizedMessage}" }
+                busy = false
+            }
+        }
+    }
+    val joinInput = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { selected ->
+        clipsToJoin = selected.take(12)
+        if (clipsToJoin.size in 2..12) joinOutput.launch("ProGalleryX-joined.mp4")
+        else message = "اختر مقطعين على الأقل"
+    }
     var muteVideoAudio by remember { mutableStateOf(false) }
     var startSecond by remember { mutableFloatStateOf(0f) }
     var endSecond by remember { mutableFloatStateOf(10f) }
@@ -126,6 +141,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Text("تأكد أن النهاية لا تتجاوز مدة الفيديو. يدعم التصدير وفق إمكانات الجهاز.")
             Button(onClick = { videoOutput.launch("ProGalleryX-trimmed.mp4") }, enabled = !busy) { Text("تصدير مقطع MP4") }
         }
+        Button(onClick = { joinInput.launch("video/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("دمج مقاطع فيديو (2–12)") }
         if (busy) CircularProgressIndicator()
         OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("العودة إلى المعرض") }
     }
