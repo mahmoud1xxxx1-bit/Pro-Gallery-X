@@ -5,6 +5,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -153,13 +157,36 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         Text(message, style = MaterialTheme.typography.bodyMedium)
         if (selectedSection == 0) {
         Button(onClick = { editInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("تحرير الإضاءة والتباين والألوان") }
-        if (showAdjustments) {
+        if (showAdjustments && editSource != null) {
+            val photoMatrix = remember(brightness, contrast, saturation) {
+                android.graphics.ColorMatrix().apply {
+                    setSaturation(saturation)
+                    val offset = 128f * (1f - contrast) + brightness * 2.55f
+                    postConcat(android.graphics.ColorMatrix(floatArrayOf(
+                        contrast, 0f, 0f, 0f, offset,
+                        0f, contrast, 0f, 0f, offset,
+                        0f, 0f, contrast, 0f, offset,
+                        0f, 0f, 0f, 1f, 0f
+                    )))
+                }
+            }
+            Card(modifier = Modifier.fillMaxWidth()) {
+                AsyncImage(
+                    model = editSource,
+                    contentDescription = "معاينة التعديلات",
+                    colorFilter = ColorFilter.colorMatrix(ColorMatrix(photoMatrix.array.copyOf())),
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth().height(260.dp)
+                )
+            }
+            Text("معاينة قبل الحفظ", style = MaterialTheme.typography.labelMedium)
             Text("الإضاءة: ${brightness.toInt()}")
             Slider(value = brightness, onValueChange = { brightness = it }, valueRange = -100f..100f)
             Text("التباين: ${(contrast * 100).toInt()}%")
             Slider(value = contrast, onValueChange = { contrast = it }, valueRange = 0.5f..1.5f)
             Text("التشبع: ${(saturation * 100).toInt()}%")
             Slider(value = saturation, onValueChange = { saturation = it }, valueRange = 0f..2f)
+            TextButton(onClick = { brightness = 0f; contrast = 1f; saturation = 1f }, enabled = !busy) { Text("إعادة ضبط التعديلات") }
             Button(onClick = { editedOutput.launch("ProGalleryX-edited.jpg") }, enabled = !busy) { Text("تصدير صورة جديدة") }
         }
         Button(onClick = { rotateInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
