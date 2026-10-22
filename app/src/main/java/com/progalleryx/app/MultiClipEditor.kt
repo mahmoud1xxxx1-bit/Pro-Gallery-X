@@ -21,6 +21,7 @@ import kotlin.coroutines.resumeWithException
 object MultiClipEditor {
     suspend fun export(context: Context, sources: List<Uri>, destination: Uri) {
         require(sources.size in 2..12) { "Choose 2 to 12 clips" }
+        require(sources.distinct().size == sources.size) { "Duplicate clips selected" }
         val temp = File.createTempFile("pgx_join_", ".mp4", context.cacheDir)
         try {
             // Transformer requires an output path that does not already exist.
