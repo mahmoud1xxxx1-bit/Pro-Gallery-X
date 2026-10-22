@@ -70,11 +70,9 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
     var favoriteRevision by remember { mutableIntStateOf(0) }
     var showDetails by remember { mutableStateOf(false) }
     var showTools by remember { mutableStateOf(false) }
+    var pickedMedia by remember { mutableStateOf<List<GalleryMedia>>(emptyList()) }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { picked ->
-        if (picked.isNotEmpty()) {
-            val send = Intent(Intent.ACTION_SEND_MULTIPLE).apply { type = "image/*"; putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(picked)); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            runCatching { ctx.startActivity(Intent.createChooser(send, "الصور المختارة")) }
-        }
+        pickedMedia = picked.mapIndexed { i, uri -> GalleryMedia(-1L - i, uri, false, 0L) }
     }
     var pendingTrash by remember { mutableStateOf<GalleryMedia?>(null) }
     val trashLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
@@ -149,7 +147,12 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                     }
                     if (state.loading) item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
                     if (state.error != null) item(span = { GridItemSpan(maxLineSpan) }) { Text(state.error ?: "", Modifier.clickable { vm.loadMore() }.padding(18.dp), color = Color.Red) }
-                    if (state.end && state.items.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                    if (state.end && state.items.isEmpty() && pickedMedia.isNotEmpty()) {
+                        itemsIndexed(pickedMedia, key = { _, item -> item.id }) { _, item ->
+                            AsyncImage(model = item.uri, contentDescription = "صورة مختارة", modifier = Modifier.aspectRatio(1f).clickable { selected = item }, contentScale = ContentScale.Crop)
+                        }
+                    }
+                    if (state.end && state.items.isEmpty() && pickedMedia.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
                         Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Icon(Icons.Outlined.PhotoLibrary, contentDescription = null, tint = Blue, modifier = Modifier.size(56.dp))
                             Text(if (state.filter == MediaFilter.FAVORITES) "لم تضف صورًا للمفضلة بعد" else "لم نجد صورًا في هذا القسم", style = MaterialTheme.typography.titleMedium)
