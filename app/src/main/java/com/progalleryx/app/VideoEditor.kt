@@ -31,6 +31,7 @@ object VideoEditor {
         }
         val temp = File.createTempFile("pgx_trim_", ".mp4", context.cacheDir)
         try {
+            if (!temp.delete()) throw IOException("Cannot prepare export path")
             withContext(Dispatchers.Main) {
                 suspendCancellableCoroutine<Unit> { continuation ->
                     val clip = MediaItem.Builder()
