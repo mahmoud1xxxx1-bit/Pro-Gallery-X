@@ -97,14 +97,17 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var showAdjustments by remember { mutableStateOf(false) }
     var rotation by remember { mutableIntStateOf(0) }
     var flipHorizontal by remember { mutableStateOf(false) }
+    var flipVertical by remember { mutableStateOf(false) }
+    var cropRatio by remember { mutableFloatStateOf(0f) }
+    var jpegQuality by remember { mutableIntStateOf(92) }
     var undoStack by remember { mutableStateOf<List<PhotoAdjustments>>(emptyList()) }
     fun snapshot() {
-        undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal)).takeLast(30)
+        undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality)).takeLast(30)
     }
     val editedOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { target ->
         val source = editSource
         if (!busy && target != null && source != null) {
-            val adjustments = PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal)
+            val adjustments = PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality)
             busy = true
             scope.launch {
                 try { PhotoEditor.export(context, source, target, adjustments); message = "تم تصدير الصورة بنجاح" }
@@ -115,7 +118,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         }
     }
     val editInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) { editSource = uri; showAdjustments = true; brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; undoStack = emptyList() }
+        if (uri != null) { editSource = uri; showAdjustments = true; brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; undoStack = emptyList() }
     }
     val pdfOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { target ->
         if (!busy && target != null && images.isNotEmpty()) {
@@ -183,13 +186,14 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     contentDescription = "معاينة التعديلات",
                     colorFilter = ColorFilter.colorMatrix(ColorMatrix(photoMatrix.array.copyOf())),
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxWidth().height(260.dp).graphicsLayer { rotationZ = rotation.toFloat(); scaleX = if (flipHorizontal) -1f else 1f }
+                    modifier = Modifier.fillMaxWidth().height(260.dp).graphicsLayer { rotationZ = rotation.toFloat(); scaleX = if (flipHorizontal) -1f else 1f; scaleY = if (flipVertical) -1f else 1f }
                 )
             }
             Text("معاينة قبل الحفظ", style = MaterialTheme.typography.labelMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { snapshot(); rotation = (rotation + 90) % 360 }, enabled = !busy) { Text("تدوير 90°") }
-                OutlinedButton(onClick = { snapshot(); flipHorizontal = !flipHorizontal }, enabled = !busy) { Text("انعكاس") }
+                OutlinedButton(onClick = { snapshot(); flipHorizontal = !flipHorizontal }, enabled = !busy) { Text("أفقي") }
+                OutlinedButton(onClick = { snapshot(); flipVertical = !flipVertical }, enabled = !busy) { Text("عمودي") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 TextButton(onClick = {
@@ -200,17 +204,29 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     saturation = previous.saturation
                     rotation = previous.rotation
                     flipHorizontal = previous.flipHorizontal
+                    flipVertical = previous.flipVertical
+                    cropRatio = previous.cropRatio
+                    jpegQuality = previous.jpegQuality
                 }, enabled = !busy && undoStack.isNotEmpty()) { Text("تراجع") }
                 TextButton(onClick = { snapshot(); brightness = 18f; contrast = 1.12f; saturation = 1.18f }, enabled = !busy) { Text("ألوان نابضة") }
                 TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1.08f; saturation = 0f }, enabled = !busy) { Text("أبيض وأسود") }
             }
+            Text("نسبة القص", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf("الأصل" to 0f, "1:1" to 1f, "4:3" to (4f / 3f), "16:9" to (16f / 9f)).forEach { (label, ratio) ->
+                    FilterChip(selected = cropRatio == ratio, onClick = { snapshot(); cropRatio = ratio },
+                        label = { Text(label) }, enabled = !busy)
+                }
+            }
+            Text("جودة JPEG: $jpegQuality%")
+            Slider(value = jpegQuality.toFloat(), onValueChange = { jpegQuality = it.toInt() }, valueRange = 70f..100f, enabled = !busy)
             Text("الإضاءة: ${brightness.toInt()}")
             Slider(value = brightness, onValueChange = { brightness = it }, valueRange = -100f..100f)
             Text("التباين: ${(contrast * 100).toInt()}%")
             Slider(value = contrast, onValueChange = { contrast = it }, valueRange = 0.5f..1.5f)
             Text("التشبع: ${(saturation * 100).toInt()}%")
             Slider(value = saturation, onValueChange = { saturation = it }, valueRange = 0f..2f)
-            TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false }, enabled = !busy) { Text("إعادة ضبط التعديلات") }
+            TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92 }, enabled = !busy) { Text("إعادة ضبط التعديلات") }
             Button(onClick = { editedOutput.launch("ProGalleryX-edited.jpg") }, enabled = !busy) { Text("تصدير صورة جديدة") }
         }
         Button(onClick = { rotateInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
