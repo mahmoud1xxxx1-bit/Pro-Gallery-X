@@ -67,15 +67,19 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
     var selected by remember { mutableStateOf<GalleryMedia?>(null) }
     var favoriteRevision by remember { mutableIntStateOf(0) }
     var showDetails by remember { mutableStateOf(false) }
+    var showTools by remember { mutableStateOf(false) }
     var pendingTrash by remember { mutableStateOf<GalleryMedia?>(null) }
     val trashLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) { selected = null; pendingTrash = null; vm.reload() }
     }
     LaunchedEffect(permitted) { if (permitted) { vm.reload(); vm.loadAlbums() } }
     MaterialTheme(colorScheme = lightColorScheme(primary = Blue, background = Back, surface = Color.White)) {
-        Column(Modifier.fillMaxSize().background(Back)) {
+        if (showTools) {
+            OfflineToolsPanel(onClose = { showTools = false })
+        } else Column(Modifier.fillMaxSize().background(Back)) {
             Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 18.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column { Text("Pro Gallery X", fontWeight = FontWeight.Bold, color = Navy, style = MaterialTheme.typography.headlineSmall); Text("معرضك الخاص • بدون سحابة", color = Color.Gray, style = MaterialTheme.typography.bodySmall) }
+                TextButton(onClick = { showTools = true }) { Text("الأدوات") }
                 IconButton(onClick = { if (permitted) vm.reload() }) { Icon(Icons.Outlined.Refresh, contentDescription = "تحديث المعرض", tint = Blue) }
             }
             if (!permitted) {
