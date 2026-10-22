@@ -9,7 +9,7 @@ import android.content.ContentResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-enum class MediaFilter { ALL, PHOTOS, VIDEOS }
+enum class MediaFilter { ALL, PHOTOS, VIDEOS, FAVORITES }
 data class GalleryMedia(val id: Long, val uri: Uri, val video: Boolean, val date: Long)
 
 class MediaRepository(private val context: Context) {
@@ -26,6 +26,7 @@ class MediaRepository(private val context: Context) {
                 MediaFilter.ALL -> "$typeColumn IN (?, ?)" to arrayOf(images.toString(), videos.toString())
                 MediaFilter.PHOTOS -> "$typeColumn = ?" to arrayOf(images.toString())
                 MediaFilter.VIDEOS -> "$typeColumn = ?" to arrayOf(videos.toString())
+                MediaFilter.FAVORITES -> "$typeColumn IN (?, ?)" to arrayOf(images.toString(), videos.toString())
             }
             val args = Bundle().apply {
                 putString(ContentResolver.QUERY_ARG_SQL_SELECTION, where)
