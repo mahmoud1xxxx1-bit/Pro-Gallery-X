@@ -71,7 +71,7 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
     val trashLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) { selected = null; pendingTrash = null; vm.reload() }
     }
-    LaunchedEffect(permitted) { if (permitted) vm.reload() }
+    LaunchedEffect(permitted) { if (permitted) { vm.reload(); vm.loadAlbums() } }
     MaterialTheme(colorScheme = lightColorScheme(primary = Blue, background = Back, surface = Color.White)) {
         Column(Modifier.fillMaxSize().background(Back)) {
             Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 18.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -98,6 +98,20 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                 }
                 LaunchedEffect(state.filter, state.items.size, state.loading, state.end) {
                     if (state.filter == MediaFilter.FAVORITES && state.items.isEmpty() && !state.loading && !state.end) vm.loadMore()
+                }
+                var albumMenu by remember { mutableStateOf(false) }
+                Box(Modifier.padding(horizontal = 16.dp)) {
+                    OutlinedButton(onClick = { albumMenu = true }) {
+                        Text(state.albums.firstOrNull { it.id == state.albumId }?.title ?: "جميع الألبومات")
+                        Icon(Icons.Outlined.ArrowDropDown, contentDescription = null)
+                    }
+                    DropdownMenu(expanded = albumMenu, onDismissRequest = { albumMenu = false }) {
+                        DropdownMenuItem(text = { Text("جميع الألبومات") }, onClick = { vm.setAlbum(null); albumMenu = false })
+                        state.albums.forEach { album ->
+                            DropdownMenuItem(text = { Text("${album.title} (${album.count})") },
+                                onClick = { vm.setAlbum(album.id); albumMenu = false })
+                        }
+                    }
                 }
                 val gridState = rememberLazyGridState()
                 LaunchedEffect(gridState, state.items.size, state.loading, state.end, state.filter) {
