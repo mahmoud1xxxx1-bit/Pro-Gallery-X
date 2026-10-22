@@ -3,6 +3,7 @@ package com.progalleryx.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,37 +17,47 @@ data class GalleryState(
     val error: String? = null
 )
 
-class GalleryViewModel(app: Application): AndroidViewModel(app) {
+class GalleryViewModel(app: Application) : AndroidViewModel(app) {
     private val repository = MediaRepository(app)
     private val mutable = MutableStateFlow(GalleryState())
     val state = mutable.asStateFlow()
     private var request: Job? = null
+    private var generation = 0L
+
     fun setFilter(filter: MediaFilter) {
-        if (mutable.value.filter == filter) return
-        reload(filter)
+        if (mutable.value.filter != filter) reload(filter)
     }
+
     fun reload(filter: MediaFilter = mutable.value.filter) {
         request?.cancel()
+        generation++
         mutable.value = GalleryState(filter = filter)
         loadMore()
     }
+
     fun loadMore() {
         val current = mutable.value
         if (current.loading || current.end) return
+        val token = generation
         mutable.value = current.copy(loading = true, error = null)
         request = viewModelScope.launch {
             try {
                 val batch = repository.page(current.items.size, filter = current.filter)
-                // Ignore stale results after permission changes or filter switches.
-                if (mutable.value.filter != current.filter) return@launch
-                mutable.value = mutable.value.copy(
-                    items = current.items + batch,
+                if (token != generation) return@launch
+                // Some Android providers ignore offset arguments. Do not create
+                // an infinite list of repeated items in that situation.
+                val existing = current.items.mapTo(HashSet()) { it.uri }
+                val unique = batch.filter { existing.add(it.uri) }
+                mutable.value = current.copy(
+                    items = current.items + unique,
                     loading = false,
-                    end = batch.size < 80
+                    end = batch.size < 80 || unique.isEmpty()
                 )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
-                if (mutable.value.filter == current.filter)
-                    mutable.value = mutable.value.copy(loading = false, error = e.localizedMessage ?: "خطأ في قراءة الملفات")
+                if (token == generation)
+                    mutable.value = current.copy(loading = false, error = e.localizedMessage ?: "تعذر قراءة الصور")
             }
         }
     }
