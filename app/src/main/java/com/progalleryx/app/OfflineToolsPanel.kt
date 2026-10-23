@@ -53,10 +53,11 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var clipsToJoin by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var joinRanges by remember { mutableStateOf<Map<Uri, Pair<Float, Float>>>(emptyMap()) }
     var joinDurations by remember { mutableStateOf<Map<Uri, Float>>(emptyMap()) }
+    var mutedJoinClips by remember { mutableStateOf<Set<Uri>>(emptySet()) }
     var timelineCursorMs by remember { mutableFloatStateOf(0f) }
     val joinOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { dest ->
         if (!busy && dest != null && clipsToJoin.size in 2..12) {
-            val orderedClips = clipsToJoin.mapNotNull { uri -> joinRanges[uri]?.let { VideoJoinPart(uri, (it.first * 1000f).toLong(), (it.second * 1000f).toLong()) } }
+            val orderedClips = clipsToJoin.mapNotNull { uri -> joinRanges[uri]?.let { VideoJoinPart(uri, (it.first * 1000f).toLong(), (it.second * 1000f).toLong(), uri in mutedJoinClips) } }
             if (orderedClips.size != clipsToJoin.size) return@rememberLauncherForActivityResult
             busy = true
             scope.launch {
@@ -76,6 +77,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         clipsToJoin = selected.distinct().take(12)
         joinRanges = emptyMap()
         joinDurations = emptyMap()
+        mutedJoinClips = emptySet()
         val captured = clipsToJoin.toList()
         scope.launch {
             val durations = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -890,6 +892,12 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 }
             }
             clipsToJoin.forEachIndexed { index, uri ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = uri in mutedJoinClips, onCheckedChange = { mute ->
+                        mutedJoinClips = if (mute) mutedJoinClips + uri else mutedJoinClips - uri
+                    }, enabled = !busy)
+                    Text("كتم الصوت الأصلي للمقطع ${index + 1}")
+                }
                 joinRanges[uri]?.let { (start, end) ->
                     val duration = joinDurations[uri] ?: end
                     Text("المقطع ${index + 1}: من ${"%.1f".format(start)} إلى ${"%.1f".format(end)} ثانية")
