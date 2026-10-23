@@ -376,7 +376,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Slider(value = contrast, onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; contrast = it }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 0.5f..1.5f)
             Text("التشبع: ${(saturation * 100).toInt()}%")
             Slider(value = saturation, onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; saturation = it }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 0f..2f)
-            TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; caption = ""; captionDark = false; captionSize = 32; captionPosition = 0.9f }, enabled = !busy) { Text("إعادة ضبط التعديلات") }
+            TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; caption = ""; captionDark = false; captionSize = 32; captionPosition = 0.9f; maxDimension = 2400 }, enabled = !busy) { Text("إعادة ضبط التعديلات") }
             Button(onClick = { editedOutput.launch("ProGalleryX-edited.jpg") }, enabled = !busy) { Text("تصدير صورة جديدة") }
         }
         Button(onClick = { rotateInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
