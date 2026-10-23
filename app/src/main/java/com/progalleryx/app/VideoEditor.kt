@@ -20,13 +20,14 @@ import kotlin.coroutines.resumeWithException
 object VideoEditor {
     suspend fun trimToDocument(context: Context, input: Uri, output: Uri, startMs: Long, endMs: Long, muteAudio: Boolean = false) {
         require(startMs >= 0 && endMs > startMs && endMs - startMs >= 500) { "Invalid trim window" }
+        require(input != output) { "Source and output must differ" }
         withContext(Dispatchers.IO) {
             val metadata = MediaMetadataRetriever()
             try {
                 metadata.setDataSource(context, input)
                 val duration = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
                     ?: throw IOException("Could not determine video duration")
-                require(endMs <= duration) { "Trim ends after video duration" }
+                require(VideoExportRules.validTrim(startMs, endMs, duration)) { "Invalid trim range or video duration" }
             } finally { metadata.release() }
         }
         val temp = File.createTempFile("pgx_trim_", ".mp4", context.cacheDir)
