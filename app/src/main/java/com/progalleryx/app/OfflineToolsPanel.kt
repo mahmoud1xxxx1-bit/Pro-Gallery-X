@@ -109,8 +109,11 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var cropRatio by remember { mutableFloatStateOf(0f) }
     var jpegQuality by remember { mutableIntStateOf(92) }
     var undoStack by remember { mutableStateOf<List<PhotoAdjustments>>(emptyList()) }
+    var redoStack by remember { mutableStateOf<List<PhotoAdjustments>>(emptyList()) }
+    var adjustingSlider by remember { mutableStateOf(false) }
     fun snapshot() {
         undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality)).takeLast(30)
+        redoStack = emptyList()
     }
     val editedOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { target ->
         val source = editSource
@@ -126,7 +129,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         }
     }
     val editInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) { editSource = uri; showAdjustments = true; brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; undoStack = emptyList() }
+        if (uri != null) { editSource = uri; showAdjustments = true; brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; undoStack = emptyList(); redoStack = emptyList() }
     }
     val pdfOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { target ->
         if (!busy && target != null && images.isNotEmpty()) {
@@ -208,6 +211,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 TextButton(onClick = {
                     val previous = undoStack.last()
+                    redoStack = (redoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality)).takeLast(30)
                     undoStack = undoStack.dropLast(1)
                     brightness = previous.brightness
                     contrast = previous.contrast
@@ -218,6 +222,14 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     cropRatio = previous.cropRatio
                     jpegQuality = previous.jpegQuality
                 }, enabled = !busy && undoStack.isNotEmpty()) { Text("تراجع") }
+                TextButton(onClick = {
+                    val next = redoStack.last()
+                    redoStack = redoStack.dropLast(1)
+                    undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality)).takeLast(30)
+                    brightness = next.brightness; contrast = next.contrast; saturation = next.saturation
+                    rotation = next.rotation; flipHorizontal = next.flipHorizontal; flipVertical = next.flipVertical
+                    cropRatio = next.cropRatio; jpegQuality = next.jpegQuality
+                }, enabled = !busy && redoStack.isNotEmpty()) { Text("إعادة") }
                 TextButton(onClick = { snapshot(); brightness = 18f; contrast = 1.12f; saturation = 1.18f }, enabled = !busy) { Text("ألوان نابضة") }
                 TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1.08f; saturation = 0f }, enabled = !busy) { Text("أبيض وأسود") }
             }
@@ -229,13 +241,13 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 }
             }
             Text("جودة JPEG: $jpegQuality%")
-            Slider(value = jpegQuality.toFloat(), onValueChange = { jpegQuality = it.toInt() }, valueRange = 70f..100f, enabled = !busy)
+            Slider(value = jpegQuality.toFloat(), onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; jpegQuality = it.toInt() }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 70f..100f, enabled = !busy)
             Text("الإضاءة: ${brightness.toInt()}")
-            Slider(value = brightness, onValueChange = { brightness = it }, valueRange = -100f..100f)
+            Slider(value = brightness, onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; brightness = it }, onValueChangeFinished = { adjustingSlider = false }, valueRange = -100f..100f)
             Text("التباين: ${(contrast * 100).toInt()}%")
-            Slider(value = contrast, onValueChange = { contrast = it }, valueRange = 0.5f..1.5f)
+            Slider(value = contrast, onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; contrast = it }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 0.5f..1.5f)
             Text("التشبع: ${(saturation * 100).toInt()}%")
-            Slider(value = saturation, onValueChange = { saturation = it }, valueRange = 0f..2f)
+            Slider(value = saturation, onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; saturation = it }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 0f..2f)
             TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92 }, enabled = !busy) { Text("إعادة ضبط التعديلات") }
             Button(onClick = { editedOutput.launch("ProGalleryX-edited.jpg") }, enabled = !busy) { Text("تصدير صورة جديدة") }
         }
@@ -263,6 +275,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 Text("صفحات المستند: ${images.size}", style = MaterialTheme.typography.titleMedium)
                 images.take(100).forEachIndexed { index, uri ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AsyncImage(model = uri, contentDescription = "معاينة الصفحة ${index + 1}", contentScale = ContentScale.Crop, modifier = Modifier.size(48.dp, 60.dp))
                         Text("الصفحة ${index + 1}", Modifier.weight(1f))
                         TextButton(onClick = {
                             val copy = images.toMutableList()
