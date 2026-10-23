@@ -67,20 +67,8 @@ object PhotoEditor {
                 val output = Bitmap.createBitmap(cropWidth, cropHeight, Bitmap.Config.ARGB_8888)
                 try {
                     val colors = ColorMatrix().apply { setSaturation(settings.saturation) }
-                    val contrast = settings.contrast
-                    val offset = 128f * (1f - contrast) + settings.brightness * 2.55f
-                    colors.postConcat(ColorMatrix(floatArrayOf(
-                        contrast, 0f, 0f, 0f, offset,
-                        0f, contrast, 0f, 0f, offset,
-                        0f, 0f, contrast, 0f, offset,
-                        0f, 0f, 0f, 1f, 0f
-                    )))
-                    colors.postConcat(ColorMatrix(floatArrayOf(
-                        1f, 0f, 0f, 0f, settings.temperature * 0.6f + settings.tint * 0.22f,
-                        0f, 1f, 0f, 0f, -settings.tint * 0.45f,
-                        0f, 0f, 1f, 0f, -settings.temperature * 0.6f + settings.tint * 0.22f,
-                        0f, 0f, 0f, 1f, 0f
-                    )))
+                    colors.postConcat(ColorMatrix(PhotoColorRules.contrastBrightness(settings.contrast, settings.brightness)))
+                    colors.postConcat(ColorMatrix(PhotoColorRules.temperatureTint(settings.temperature, settings.tint)))
                     Canvas(output).drawBitmap(transformed, -crop.left.toFloat(), -crop.top.toFloat(), Paint(Paint.FILTER_BITMAP_FLAG).apply {
                         colorFilter = ColorMatrixColorFilter(colors)
                     })
