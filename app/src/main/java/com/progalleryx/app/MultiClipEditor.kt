@@ -170,6 +170,12 @@ object ClipSequenceTimelineRules {
     }
 
     /** Edit decisions are pure and share the same boundaries as export. */
+    /** Next playable segment, or null at the end of the composition. */
+    fun nextClipIndex(current: Int, clipCount: Int): Int? {
+        require(clipCount in 2..12 && current in 0 until clipCount)
+        return if (current + 1 < clipCount) current + 1 else null
+    }
+
     fun <T> moveClip(clips: List<T>, fromIndex: Int, toIndex: Int): List<T> {
         require(clips.size in 2..12 && fromIndex in clips.indices && toIndex in clips.indices)
         if (fromIndex == toIndex) return clips.toList()

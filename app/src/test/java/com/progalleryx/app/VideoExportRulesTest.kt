@@ -112,4 +112,16 @@ class VideoExportRulesTest {
         }
     }
 
+    @Test fun continuousPreviewAdvancesAndTerminatesAtLastClip() {
+        org.junit.Assert.assertEquals(1, ClipSequenceTimelineRules.nextClipIndex(0, 3))
+        org.junit.Assert.assertEquals(2, ClipSequenceTimelineRules.nextClipIndex(1, 3))
+        org.junit.Assert.assertNull(ClipSequenceTimelineRules.nextClipIndex(2, 3))
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.nextClipIndex(-1, 3)
+        }
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.nextClipIndex(0, 1)
+        }
+    }
+
 }
