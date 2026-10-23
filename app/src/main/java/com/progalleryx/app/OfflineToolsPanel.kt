@@ -96,6 +96,13 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         }
         message = if (clipsToJoin.size in 2..12) "رتّب المقاطع ثم صدّر الفيديو" else "اختر مقطعين على الأقل"
     }
+    var muteVideoAudio by remember { mutableStateOf(false) }
+    var videoSpeed by remember { mutableFloatStateOf(1f) }
+    var videoBitrate by remember { mutableIntStateOf(VideoQualityRules.AUTO) }
+    var startSecond by remember { mutableFloatStateOf(0f) }
+    var endSecond by remember { mutableFloatStateOf(10f) }
+    var videoDuration by remember { mutableFloatStateOf(0f) }
+    var videoInfoValid by remember { mutableStateOf(false) }
     var soundtrackUri by remember { mutableStateOf<Uri?>(null) }
     val soundtrackPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { soundtrackUri = it }
     val soundtrackOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { target ->
@@ -115,13 +122,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             }
         }
     }
-    var muteVideoAudio by remember { mutableStateOf(false) }
-    var videoSpeed by remember { mutableFloatStateOf(1f) }
-    var videoBitrate by remember { mutableIntStateOf(VideoQualityRules.AUTO) }
-    var startSecond by remember { mutableFloatStateOf(0f) }
-    var endSecond by remember { mutableFloatStateOf(10f) }
-    var videoDuration by remember { mutableFloatStateOf(0f) }
-    var videoInfoValid by remember { mutableStateOf(false) }
+
     var storyboardFrames by remember { mutableStateOf<List<android.graphics.Bitmap>>(emptyList()) }
     var storyboardBusy by remember { mutableStateOf(false) }
     var requestedSeekMs by remember { mutableLongStateOf(-1L) }
