@@ -12,6 +12,8 @@ import androidx.media3.transformer.Transformer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.io.File
 import java.io.IOException
 import kotlin.coroutines.resume
@@ -22,6 +24,7 @@ object MultiClipEditor {
     suspend fun export(context: Context, sources: List<Uri>, destination: Uri) {
         require(sources.size in 2..12) { "Choose 2 to 12 clips" }
         require(sources.distinct().size == sources.size) { "Duplicate clips selected" }
+        require(destination !in sources) { "Output must not overwrite an original" }
         val temp = File.createTempFile("pgx_join_", ".mp4", context.cacheDir)
         try {
             // Transformer requires an output path that does not already exist.
@@ -45,6 +48,7 @@ object MultiClipEditor {
                     catch (error: Exception) { if (cont.isActive) cont.resumeWithException(error) }
                 }
             }
+            currentCoroutineContext().ensureActive()
             withContext(Dispatchers.IO) {
                 if (!temp.exists() || temp.length() == 0L) throw IOException("Export produced an empty video")
                 context.contentResolver.openOutputStream(destination, "w")?.use { out ->
