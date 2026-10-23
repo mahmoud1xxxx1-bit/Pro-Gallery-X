@@ -11,7 +11,7 @@ import java.security.MessageDigest
 
 data class DuplicatePhoto(val uri: Uri, val name: String, val bytes: Long)
 data class DuplicateGroup(val photos: List<DuplicatePhoto>) {
-    val reclaimableBytes: Long get() = photos.drop(1).sumOf { it.bytes }
+    val reclaimableBytes: Long get() = DuplicateFingerprintRules.reclaimableBytes(photos.map { it.bytes })
 }
 data class DuplicateScan(val groups: List<DuplicateGroup>, val examined: Int, val skipped: Int, val truncated: Boolean) {
     val reclaimableBytes: Long get() = groups.sumOf { it.reclaimableBytes }
@@ -54,7 +54,7 @@ object DuplicatePhotoScanner {
                             if (amount > 0) digest.update(bytes, 0, amount)
                         }
                     } ?: throw java.io.IOException("Cannot read image")
-                    val fingerprint = photo.bytes.toString() + ":" + digest.digest().joinToString("") { "%02x".format(it) }
+                    val fingerprint = DuplicateFingerprintRules.key(photo.bytes, digest.digest())
                     hashes.getOrPut(fingerprint) { mutableListOf() }.add(photo)
                 } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                 catch (_: Exception) { skipped++ }
