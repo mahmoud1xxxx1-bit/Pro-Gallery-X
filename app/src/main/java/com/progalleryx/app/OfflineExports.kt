@@ -18,6 +18,7 @@ import kotlinx.coroutines.ensureActive
  * Decode limits deliberately bound memory usage on large camera photos.
  */
 enum class PdfLayout { PORTRAIT, LANDSCAPE, AUTO }
+enum class PdfPaper { A4, LETTER }
 
 object OfflineExports {
     suspend fun rotateAndSave(context: Context, source: Uri, destination: Uri): Unit =
@@ -43,7 +44,7 @@ object OfflineExports {
             } finally { original.recycle() }
         }
 
-    suspend fun imagesToPdf(context: Context, images: List<Uri>, destination: Uri, layout: PdfLayout = PdfLayout.PORTRAIT, pageNumbers: Boolean = false): Unit =
+    suspend fun imagesToPdf(context: Context, images: List<Uri>, destination: Uri, layout: PdfLayout = PdfLayout.PORTRAIT, pageNumbers: Boolean = false, paper: PdfPaper = PdfPaper.A4): Unit =
         withContext(Dispatchers.IO) {
             require(images.isNotEmpty() && images.size <= 100) { "Select 1–100 images" }
             val pdf = PdfDocument()
@@ -63,8 +64,10 @@ object OfflineExports {
                     } ?: throw IOException("Cannot decode image ${index + 1}")
                     try {
                         val landscape = layout == PdfLayout.LANDSCAPE || (layout == PdfLayout.AUTO && bitmap.width > bitmap.height)
-                        val pageWidth = if (landscape) 842 else 595
-                        val pageHeight = if (landscape) 595 else 842
+                        val portraitWidth = if (paper == PdfPaper.A4) 595 else 612
+                        val portraitHeight = if (paper == PdfPaper.A4) 842 else 792
+                        val pageWidth = if (landscape) portraitHeight else portraitWidth
+                        val pageHeight = if (landscape) portraitWidth else portraitHeight
                         val page = pdf.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, index + 1).create())
                         val scale = minOf((pageWidth - 40f) / bitmap.width, (pageHeight - 40f) / bitmap.height)
                         val left = (pageWidth - bitmap.width * scale) / 2f

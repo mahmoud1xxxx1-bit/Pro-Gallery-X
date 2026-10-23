@@ -25,6 +25,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var pdfLayout by remember { mutableStateOf(PdfLayout.AUTO) }
+    var pdfPaper by remember { mutableStateOf(PdfPaper.A4) }
     var pdfPageNumbers by remember { mutableStateOf(false) }
     var imageToRotate by remember { mutableStateOf<Uri?>(null) }
     var message by remember { mutableStateOf("كل المعالجة محلية. لن تُعدّل الملفات الأصلية.") }
@@ -135,10 +136,11 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         if (!busy && target != null && images.isNotEmpty()) {
             val selectedImages = images.toList()
             val selectedLayout = pdfLayout
+            val selectedPaper = pdfPaper
             val includeNumbers = pdfPageNumbers
             busy = true
             scope.launch {
-                try { OfflineExports.imagesToPdf(context, selectedImages, target, selectedLayout, includeNumbers); message = "تم تصدير ملف PDF بنجاح" }
+                try { OfflineExports.imagesToPdf(context, selectedImages, target, selectedLayout, includeNumbers, selectedPaper); message = "تم تصدير ملف PDF بنجاح" }
                 catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                 catch (error: Exception) { message = "تعذر تصدير PDF: ${error.localizedMessage}" }
                 finally { busy = false }
@@ -262,6 +264,11 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 Text("اختيار صفحات PDF (حتى 100 صورة)")
             }
             if (images.isNotEmpty()) {
+                Text("حجم الورق", style = MaterialTheme.typography.titleSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = pdfPaper == PdfPaper.A4, onClick = { pdfPaper = PdfPaper.A4 }, label = { Text("A4") }, enabled = !busy)
+                    FilterChip(selected = pdfPaper == PdfPaper.LETTER, onClick = { pdfPaper = PdfPaper.LETTER }, label = { Text("Letter") }, enabled = !busy)
+                }
                 Text("اتجاه الصفحات", style = MaterialTheme.typography.titleSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf(PdfLayout.AUTO to "تلقائي", PdfLayout.PORTRAIT to "عمودي", PdfLayout.LANDSCAPE to "أفقي").forEach { (mode, label) ->
