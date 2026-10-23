@@ -68,4 +68,23 @@ class VideoExportRulesTest {
         org.junit.Assert.assertNull(ClipSequenceTimelineRules.sourcePositionAt(emptyList<TimelineSegment<String>>(), 0L))
     }
 
+    @Test fun bulkTrimPresetsPreserveValidWindows() {
+        val durations = mapOf("a" to 12000L, "b" to 3000L)
+        val rules = ClipSequenceTimelineRules
+        org.junit.Assert.assertEquals(0L to 5000L, rules.batchRanges(durations, ClipSequenceTimelineRules.TrimPreset.FIRST_FIVE_SECONDS)["a"])
+        org.junit.Assert.assertEquals(0L to 3000L, rules.batchRanges(durations, ClipSequenceTimelineRules.TrimPreset.FIRST_FIVE_SECONDS)["b"])
+        org.junit.Assert.assertEquals(7000L to 12000L, rules.batchRanges(durations, ClipSequenceTimelineRules.TrimPreset.LAST_FIVE_SECONDS)["a"])
+        org.junit.Assert.assertEquals(0L to 3000L, rules.batchRanges(durations, ClipSequenceTimelineRules.TrimPreset.LAST_FIVE_SECONDS)["b"])
+        org.junit.Assert.assertEquals(12000L, rules.totalSelectedDurationMs(listOf(0L to 5000L, 0L to 7000L)))
+    }
+
+    @Test fun bulkTrimsRejectBadDurationsAndWindows() {
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.batchRanges(mapOf("a" to 499L), ClipSequenceTimelineRules.TrimPreset.FULL)
+        }
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.totalSelectedDurationMs(listOf(0L to 499L, 0L to 2000L))
+        }
+    }
+
 }
