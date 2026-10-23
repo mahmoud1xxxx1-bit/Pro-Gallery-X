@@ -1,6 +1,10 @@
 package com.progalleryx.app
 
 import android.net.Uri
+import android.graphics.BitmapFactory
+import android.media.ExifInterface
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
@@ -348,7 +352,37 @@ fun PhotoEditorSection(
             }
         }
 
-        // Active Photo Workspace Canvas
+        // Read the source's intrinsic dimensions off the UI thread. A fixed 4:3
+    // workspace distorts normalized text/sticker positions on portrait photos.
+    var intrinsicAspect by remember(editSource) { mutableFloatStateOf(1f) }
+    LaunchedEffect(editSource) {
+        val source = editSource ?: return@LaunchedEffect
+        intrinsicAspect = withContext(Dispatchers.IO) {
+            runCatching {
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                context.contentResolver.openInputStream(source)?.use {
+                    BitmapFactory.decodeStream(it, null, bounds)
+                }
+                val orientation = context.contentResolver.openInputStream(source)?.use {
+                    ExifInterface(it).getAttributeInt(
+                        ExifInterface.TAG_ORIENTATION,
+                        ExifInterface.ORIENTATION_NORMAL
+                    )
+                } ?: ExifInterface.ORIENTATION_NORMAL
+                val rotated = orientation in listOf(
+                    ExifInterface.ORIENTATION_ROTATE_90,
+                    ExifInterface.ORIENTATION_ROTATE_270,
+                    ExifInterface.ORIENTATION_TRANSPOSE,
+                    ExifInterface.ORIENTATION_TRANSVERSE
+                )
+                val w = if (rotated) bounds.outHeight else bounds.outWidth
+                val h = if (rotated) bounds.outWidth else bounds.outHeight
+                if (w > 0 && h > 0) w.toFloat() / h else 1f
+            }.getOrDefault(1f)
+        }
+    }
+
+    // Active Photo Workspace Canvas
         if (editSource != null) {
             val photoMatrix = remember(brightness, contrast, saturation, temperature, tint) {
                 android.graphics.ColorMatrix().apply {
@@ -365,19 +399,26 @@ fun PhotoEditorSection(
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Box(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(320.dp)
                         .background(Color(0xFF14181D)),
                     contentAlignment = Alignment.Center
                 ) {
-                    val frameAspect = if (cropRatio > 0f) cropRatio else (if (rotation == 90 || rotation == 270) 0.75f else 1.33f)
+                    val rotatedAspect = if (rotation == 90 || rotation == 270) 1f / intrinsicAspect.coerceAtLeast(0.01f) else intrinsicAspect
+                    val frameAspect = (if (cropRatio > 0f) cropRatio else rotatedAspect).coerceIn(0.1f, 10f)
+                    // Fit the entire transformed image inside BOTH viewport bounds.
+                    // A height-first aspectRatio modifier can overflow narrow devices.
+                    val availableWidth = maxWidth * 0.96f
+                    val availableHeight = maxHeight * 0.94f
+                    val imageWidth = minOf(availableWidth, availableHeight * frameAspect)
+                    val imageHeight = imageWidth / frameAspect
 
                     Box(
                         modifier = Modifier
-                            .aspectRatio(frameAspect, matchHeightConstraintsFirst = true)
-                            .fillMaxHeight(0.94f)
+                            .width(imageWidth)
+                            .height(imageHeight)
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color.Black),
                         contentAlignment = Alignment.Center
