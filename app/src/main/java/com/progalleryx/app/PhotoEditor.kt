@@ -17,14 +17,14 @@ import java.io.File
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
-data class PhotoAdjustments(val brightness: Float = 0f, val contrast: Float = 1f, val saturation: Float = 1f, val rotation: Int = 0, val flipHorizontal: Boolean = false, val flipVertical: Boolean = false, val cropRatio: Float = 0f, val jpegQuality: Int = 92, val caption: String = "", val captionDark: Boolean = false, val captionSize: Int = 32)
+data class PhotoAdjustments(val brightness: Float = 0f, val contrast: Float = 1f, val saturation: Float = 1f, val rotation: Int = 0, val flipHorizontal: Boolean = false, val flipVertical: Boolean = false, val cropRatio: Float = 0f, val jpegQuality: Int = 92, val caption: String = "", val captionDark: Boolean = false, val captionSize: Int = 32, val captionPosition: Float = 0.9f)
 
 /** Offline JPEG export. Source URI is read-only; destination must be a newly selected document. */
 object PhotoEditor {
     suspend fun export(context: Context, source: Uri, destination: Uri, settings: PhotoAdjustments) =
         withContext(Dispatchers.IO) {
             require(source != destination) { "Original and output must be different" }
-            require(settings.brightness in -100f..100f && settings.contrast in 0.5f..1.5f && settings.saturation in 0f..2f && settings.rotation in listOf(0, 90, 180, 270) && settings.cropRatio in listOf(0f, 1f, 4f / 3f, 16f / 9f) && settings.jpegQuality in 70..100 && settings.caption.length <= 80 && settings.captionSize in 16..72)
+            require(settings.brightness in -100f..100f && settings.contrast in 0.5f..1.5f && settings.saturation in 0f..2f && settings.rotation in listOf(0, 90, 180, 270) && settings.cropRatio in listOf(0f, 1f, 4f / 3f, 16f / 9f) && settings.jpegQuality in 70..100 && settings.caption.length <= 80 && settings.captionSize in 16..72 && settings.captionPosition in 0.1f..0.9f)
             val orientation = runCatching {
                 context.contentResolver.openInputStream(source)?.use {
                     ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
@@ -87,7 +87,7 @@ object PhotoEditor {
                             typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
                             setShadowLayer(2.5f * scale.coerceAtLeast(0.5f), 1f, 1f, if (settings.captionDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
                         }
-                        val baseline = (output.height - 28f * scale.coerceAtLeast(0.5f)).coerceAtLeast(paint.textSize)
+                        val baseline = (output.height * settings.captionPosition).coerceIn(paint.textSize, output.height - paint.textSize * 0.2f)
                         Canvas(output).drawText(settings.caption, output.width / 2f, baseline, paint)
                     }
                     val temp = File.createTempFile("pgx_photo_", ".jpg", context.cacheDir)
