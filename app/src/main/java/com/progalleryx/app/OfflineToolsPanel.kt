@@ -466,6 +466,22 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 Text("الإزاحة تطبق على الملف الناتج؛ المعاينة الحالية لا تعرض موضع القص بدقة.")
             }
             HorizontalDivider()
+            Text("الرسم الحر فوق الصورة", style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = brushMode, onCheckedChange = { brushMode = it }, enabled = !busy)
+                Text("تفعيل فرشاة الرسم داخل المعاينة")
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = brushDark, onCheckedChange = { brushDark = it }, enabled = !busy)
+                Text("فرشاة سوداء (بدل البيضاء)")
+            }
+            Text("سُمك الفرشاة: ${(brushWidth * 1000).toInt()}")
+            Slider(value = brushWidth, onValueChange = { brushWidth = it },
+                valueRange = 0.003f..0.04f, enabled = !busy)
+            Text("عدد الخطوط: ${brushStrokes.size} / 100")
+            OutlinedButton(onClick = { snapshot(); brushStrokes = emptyList() },
+                enabled = !busy && brushStrokes.isNotEmpty()) { Text("مسح كل خطوط الرسم") }
+            Text("الرسم فوق المعاينة تقريبي عند تدوير الصورة؛ الخطوط تُحفظ في نسخة JPEG الناتجة.")
             Text("طبقات نص مستقلة (حتى 3)", style = MaterialTheme.typography.titleMedium)
             Button(onClick = { snapshot(); textLayers = textLayers + PhotoTextLayer("", 0.5f, 0.3f + 0.2f * textLayers.size) },
                 enabled = !busy && textLayers.size < 3) { Text("إضافة طبقة نص") }
