@@ -206,17 +206,18 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var cropY by remember { mutableFloatStateOf(0.5f) }
     var temperature by remember { mutableFloatStateOf(0f) }
     var tint by remember { mutableFloatStateOf(0f) }
+    var textLayers by remember { mutableStateOf<List<PhotoTextLayer>>(emptyList()) }
     var undoStack by remember { mutableStateOf<List<PhotoAdjustments>>(emptyList()) }
     var redoStack by remember { mutableStateOf<List<PhotoAdjustments>>(emptyList()) }
     var adjustingSlider by remember { mutableStateOf(false) }
     fun snapshot() {
-        undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint)).takeLast(30)
+        undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint, textLayers)).takeLast(30)
         redoStack = emptyList()
     }
     val editedOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { target ->
         val source = editSource
         if (!busy && target != null && source != null) {
-            val adjustments = PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint)
+            val adjustments = PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint, textLayers)
             busy = true
             scope.launch {
                 try { PhotoEditor.export(context, source, target, adjustments); message = "تم تصدير الصورة بنجاح" }
@@ -227,7 +228,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         }
     }
     val editInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) { editSource = uri; showAdjustments = true; brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; undoStack = emptyList(); redoStack = emptyList(); caption = ""; captionDark = false; captionSize = 32; captionPosition = 0.9f; maxDimension = 2400; cropX = 0.5f; cropY = 0.5f; temperature = 0f; tint = 0f }
+        if (uri != null) { editSource = uri; showAdjustments = true; brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; undoStack = emptyList(); redoStack = emptyList(); caption = ""; captionDark = false; captionSize = 32; captionPosition = 0.9f; maxDimension = 2400; cropX = 0.5f; cropY = 0.5f; temperature = 0f; tint = 0f; textLayers = emptyList() }
     }
     val pdfOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { target ->
         if (!busy && target != null && images.isNotEmpty()) {
@@ -342,6 +343,15 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                             }
                             .graphicsLayer { rotationZ = rotation.toFloat(); scaleX = if (flipHorizontal) -1f else 1f; scaleY = if (flipVertical) -1f else 1f }
                     )
+                    textLayers.forEach { layer ->
+                        if (layer.text.isNotBlank()) Text(
+                            layer.text,
+                            color = if (layer.dark) Color.Black else Color.White,
+                            fontSize = (layer.size * 0.5f).sp,
+                            modifier = Modifier.offset(x = ((layer.x - 0.5f) * 290f).dp, y = ((layer.y - 0.5f) * 210f).dp),
+                            maxLines = 1
+                        )
+                    }
                     if (caption.isNotBlank()) Text(
                         caption,
                         color = if (captionDark) Color.Black else Color.White,
@@ -362,7 +372,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 TextButton(onClick = {
                     val previous = undoStack.last()
-                    redoStack = (redoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint)).takeLast(30)
+                    redoStack = (redoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint, textLayers)).takeLast(30)
                     undoStack = undoStack.dropLast(1)
                     brightness = previous.brightness
                     contrast = previous.contrast
@@ -378,16 +388,16 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     captionPosition = previous.captionPosition
                     maxDimension = previous.maxDimension
                     cropX = previous.cropX; cropY = previous.cropY
-                    temperature = previous.temperature; tint = previous.tint
+                    temperature = previous.temperature; tint = previous.tint; textLayers = previous.textLayers
                 }, enabled = !busy && undoStack.isNotEmpty()) { Text("تراجع") }
                 TextButton(onClick = {
                     val next = redoStack.last()
                     redoStack = redoStack.dropLast(1)
-                    undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint)).takeLast(30)
+                    undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint, textLayers)).takeLast(30)
                     brightness = next.brightness; contrast = next.contrast; saturation = next.saturation
                     rotation = next.rotation; flipHorizontal = next.flipHorizontal; flipVertical = next.flipVertical
                     cropRatio = next.cropRatio; jpegQuality = next.jpegQuality
-                    caption = next.caption; captionDark = next.captionDark; captionSize = next.captionSize; captionPosition = next.captionPosition; maxDimension = next.maxDimension; cropX = next.cropX; cropY = next.cropY; temperature = next.temperature; tint = next.tint
+                    caption = next.caption; captionDark = next.captionDark; captionSize = next.captionSize; captionPosition = next.captionPosition; maxDimension = next.maxDimension; cropX = next.cropX; cropY = next.cropY; temperature = next.temperature; tint = next.tint; textLayers = next.textLayers
                 }, enabled = !busy && redoStack.isNotEmpty()) { Text("إعادة") }
                 TextButton(onClick = { snapshot(); brightness = 18f; contrast = 1.12f; saturation = 1.18f }, enabled = !busy) { Text("ألوان نابضة") }
                 TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1.08f; saturation = 0f }, enabled = !busy) { Text("أبيض وأسود") }
@@ -411,6 +421,47 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     cropY = it
                 }, onValueChangeFinished = { adjustingSlider = false }, enabled = !busy)
                 Text("الإزاحة تطبق على الملف الناتج؛ المعاينة الحالية لا تعرض موضع القص بدقة.")
+            }
+            HorizontalDivider()
+            Text("طبقات نص مستقلة (حتى 3)", style = MaterialTheme.typography.titleMedium)
+            Button(onClick = { snapshot(); textLayers = textLayers + PhotoTextLayer("", 0.5f, 0.3f + 0.2f * textLayers.size) },
+                enabled = !busy && textLayers.size < 3) { Text("إضافة طبقة نص") }
+            textLayers.forEachIndexed { index, layer ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("طبقة ${index + 1}")
+                            TextButton(onClick = { snapshot(); textLayers = textLayers.filterIndexed { i, _ -> i != index } },
+                                enabled = !busy) { Text("حذف الطبقة") }
+                        }
+                        OutlinedTextField(value = layer.text, onValueChange = { value ->
+                            snapshot()
+                            textLayers = textLayers.toMutableList().also { it[index] = layer.copy(text = value.take(80)) }
+                        }, label = { Text("نص الطبقة") }, singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !busy)
+                        Text("الموقع أفقيًا")
+                        Slider(value = layer.x, onValueChange = { value ->
+                            if (!adjustingSlider) { snapshot(); adjustingSlider = true }
+                            textLayers = textLayers.toMutableList().also { it[index] = layer.copy(x = value) }
+                        }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 0.05f..0.95f, enabled = !busy)
+                        Text("الموقع عموديًا")
+                        Slider(value = layer.y, onValueChange = { value ->
+                            if (!adjustingSlider) { snapshot(); adjustingSlider = true }
+                            textLayers = textLayers.toMutableList().also { it[index] = layer.copy(y = value) }
+                        }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 0.05f..0.95f, enabled = !busy)
+                        Text("حجم الطبقة: ${layer.size}")
+                        Slider(value = layer.size.toFloat(), onValueChange = { value ->
+                            if (!adjustingSlider) { snapshot(); adjustingSlider = true }
+                            textLayers = textLayers.toMutableList().also { it[index] = layer.copy(size = value.toInt()) }
+                        }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 16f..72f, enabled = !busy)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = layer.dark, onCheckedChange = { value ->
+                                snapshot()
+                                textLayers = textLayers.toMutableList().also { it[index] = layer.copy(dark = value) }
+                            }, enabled = !busy)
+                            Text("نص داكن")
+                        }
+                    }
+                }
             }
             Text("نص على الصورة", style = MaterialTheme.typography.titleSmall)
             OutlinedTextField(value = caption, onValueChange = { snapshot(); caption = it.take(80) },
@@ -452,7 +503,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Slider(value = tint, onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; tint = it }, onValueChangeFinished = { adjustingSlider = false }, valueRange = -100f..100f)
             Text("التشبع: ${(saturation * 100).toInt()}%")
             Slider(value = saturation, onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; saturation = it }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 0f..2f)
-            TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; caption = ""; captionDark = false; captionSize = 32; captionPosition = 0.9f; maxDimension = 2400; cropX = 0.5f; cropY = 0.5f; temperature = 0f; tint = 0f }, enabled = !busy) { Text("إعادة ضبط التعديلات") }
+            TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; caption = ""; captionDark = false; captionSize = 32; captionPosition = 0.9f; maxDimension = 2400; cropX = 0.5f; cropY = 0.5f; temperature = 0f; tint = 0f; textLayers = emptyList() }, enabled = !busy) { Text("إعادة ضبط التعديلات") }
             Button(onClick = { editedOutput.launch("ProGalleryX-edited.jpg") }, enabled = !busy) { Text("تصدير صورة جديدة") }
         }
         Button(onClick = { rotateInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {

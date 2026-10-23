@@ -17,14 +17,18 @@ import java.io.File
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
-data class PhotoAdjustments(val brightness: Float = 0f, val contrast: Float = 1f, val saturation: Float = 1f, val rotation: Int = 0, val flipHorizontal: Boolean = false, val flipVertical: Boolean = false, val cropRatio: Float = 0f, val jpegQuality: Int = 92, val caption: String = "", val captionDark: Boolean = false, val captionSize: Int = 32, val captionPosition: Float = 0.9f, val maxDimension: Int = 2400, val cropX: Float = 0.5f, val cropY: Float = 0.5f, val temperature: Float = 0f, val tint: Float = 0f)
+data class PhotoTextLayer(val text: String, val x: Float = 0.5f, val y: Float = 0.5f, val size: Int = 32, val dark: Boolean = false) {
+    fun valid() = text.length <= 80 && x in 0.05f..0.95f && y in 0.05f..0.95f && size in 16..72
+}
+
+data class PhotoAdjustments(val brightness: Float = 0f, val contrast: Float = 1f, val saturation: Float = 1f, val rotation: Int = 0, val flipHorizontal: Boolean = false, val flipVertical: Boolean = false, val cropRatio: Float = 0f, val jpegQuality: Int = 92, val caption: String = "", val captionDark: Boolean = false, val captionSize: Int = 32, val captionPosition: Float = 0.9f, val maxDimension: Int = 2400, val cropX: Float = 0.5f, val cropY: Float = 0.5f, val temperature: Float = 0f, val tint: Float = 0f, val textLayers: List<PhotoTextLayer> = emptyList())
 
 /** Offline JPEG export. Source URI is read-only; destination must be a newly selected document. */
 object PhotoEditor {
     suspend fun export(context: Context, source: Uri, destination: Uri, settings: PhotoAdjustments) =
         withContext(Dispatchers.IO) {
             require(source != destination) { "Original and output must be different" }
-            require(settings.brightness in -100f..100f && settings.contrast in 0.5f..1.5f && settings.saturation in 0f..2f && settings.rotation in listOf(0, 90, 180, 270) && settings.cropRatio in listOf(0f, 1f, 4f / 3f, 16f / 9f, 3f / 4f, 9f / 16f) && settings.jpegQuality in 70..100 && settings.caption.length <= 80 && settings.captionSize in 16..72 && settings.captionPosition in 0.1f..0.9f && settings.maxDimension in listOf(1200, 2400, 3600) && settings.cropX in 0f..1f && settings.cropY in 0f..1f && settings.temperature in -100f..100f && settings.tint in -100f..100f)
+            require(settings.brightness in -100f..100f && settings.contrast in 0.5f..1.5f && settings.saturation in 0f..2f && settings.rotation in listOf(0, 90, 180, 270) && settings.cropRatio in listOf(0f, 1f, 4f / 3f, 16f / 9f, 3f / 4f, 9f / 16f) && settings.jpegQuality in 70..100 && settings.caption.length <= 80 && settings.captionSize in 16..72 && settings.captionPosition in 0.1f..0.9f && settings.maxDimension in listOf(1200, 2400, 3600) && settings.cropX in 0f..1f && settings.cropY in 0f..1f && settings.temperature in -100f..100f && settings.tint in -100f..100f && settings.textLayers.size <= 3 && settings.textLayers.all { it.valid() })
             val orientation = runCatching {
                 context.contentResolver.openInputStream(source)?.use {
                     ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
@@ -83,6 +87,20 @@ object PhotoEditor {
                         }
                         val baseline = (output.height * settings.captionPosition).coerceIn(paint.textSize, output.height - paint.textSize * 0.2f)
                         Canvas(output).drawText(settings.caption, output.width / 2f, baseline, paint)
+                    }
+                    for (layer in settings.textLayers) {
+                        if (layer.text.isBlank()) continue
+                        val scale = (output.width / 1000f).coerceAtLeast(0.5f)
+                        val layerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            color = if (layer.dark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                            textAlign = Paint.Align.CENTER
+                            textSize = layer.size * scale
+                            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+                            setShadowLayer(2.5f * scale, 1f, 1f, if (layer.dark) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
+                        }
+                        val x = output.width * layer.x
+                        val y = (output.height * layer.y).coerceIn(layerPaint.textSize, output.height - layerPaint.textSize * 0.2f)
+                        Canvas(output).drawText(layer.text, x, y, layerPaint)
                     }
                     val temp = File.createTempFile("pgx_photo_", ".jpg", context.cacheDir)
                     try {
