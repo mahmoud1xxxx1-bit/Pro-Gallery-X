@@ -242,7 +242,8 @@ fun ProGalleryApp(vm: GalleryViewModel = viewModel()) {
                                 onClose = {
                                     directEditingVideoUri = null
                                     vm.reload()
-                                }
+                                },
+                                isArabic = isArabic
                             )
                         }
                     }
