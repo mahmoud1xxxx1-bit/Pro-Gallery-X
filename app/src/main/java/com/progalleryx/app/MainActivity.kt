@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -33,6 +34,9 @@ import android.content.Intent
 import android.provider.MediaStore
 import android.app.Activity
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.ui.text.style.TextOverflow
@@ -205,7 +209,19 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
             Dialog(onDismissRequest = { selected = null }) {
                 Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(12.dp)) {
                     if (item.video) {
-                        Text("الفيديو جاهز للفتح باستخدام مشغل الهاتف", Modifier.padding(12.dp))
+                        key(item.uri) {
+                            AndroidView(
+                                factory = { viewContext ->
+                                    android.widget.VideoView(viewContext).apply {
+                                        setVideoURI(item.uri)
+                                        setMediaController(android.widget.MediaController(viewContext).also { it.setAnchorView(this) })
+                                        setOnPreparedListener { player -> player.isLooping = false }
+                                        start()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(300.dp)
+                            )
+                        }
                     } else {
                         AsyncImage(model = item.uri, contentDescription = "معاينة الصورة", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp))
                     }
@@ -215,7 +231,7 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                         Text("المعرف: ${item.id}", Modifier.padding(horizontal = 12.dp))
                         Text("تاريخ الإضافة: ${java.text.DateFormat.getDateInstance().format(java.util.Date(item.date * 1000L))}", Modifier.padding(horizontal = 12.dp))
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = { vm.toggleFavorite(item); favoriteRevision++ }) { Text(if (isFavorite) "★ مفضلة" else "☆ للمفضلة") }
                         TextButton(onClick = {
                             val i = Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, if (item.video) "video/*" else "image/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
