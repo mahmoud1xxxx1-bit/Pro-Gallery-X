@@ -59,7 +59,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         }
     }
     val joinInput = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { selected ->
-        clipsToJoin = selected.take(12)
+        clipsToJoin = selected.distinct().take(12)
         message = if (clipsToJoin.size in 2..12) "رتّب المقاطع ثم صدّر الفيديو" else "اختر مقطعين على الأقل"
     }
     var muteVideoAudio by remember { mutableStateOf(false) }
@@ -547,6 +547,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             clipsToJoin.forEachIndexed { index, uri ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("المقطع ${index + 1}", modifier = Modifier.weight(1f))
+                    TextButton(onClick = { clipsToJoin = clipsToJoin.filterIndexed { i, _ -> i != index } }, enabled = !busy) { Text("حذف") }
                     TextButton(onClick = {
                         val clips = clipsToJoin.toMutableList()
                         val item = clips.removeAt(index)
