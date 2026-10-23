@@ -60,6 +60,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var lastRemovedClip by remember { mutableStateOf<Pair<Uri, Int>?>(null) }
     var timelineCursorMs by remember { mutableFloatStateOf(0f) }
     var showLiveClipPreview by remember { mutableStateOf(false) }
+    var showSequencePreview by remember { mutableStateOf(false) }
     var timelinePreviewFrame by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var timelinePreviewMessage by remember { mutableStateOf("") }
     val joinOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { dest ->
@@ -897,8 +898,21 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 if (timelinePreviewMessage.isNotEmpty()) {
                     Text(timelinePreviewMessage, style = MaterialTheme.typography.bodySmall)
                 }
+                OutlinedButton(onClick = {
+                    showSequencePreview = !showSequencePreview
+                    if (showSequencePreview) showLiveClipPreview = false
+                }, enabled = !busy) {
+                    Text(if (showSequencePreview) "إغلاق معاينة جميع المقاطع" else "تشغيل جميع المقاطع بالترتيب")
+                }
+                if (showSequencePreview) {
+                    key(timelineSegments) {
+                        SequentialTimelinePlayback(timelineSegments, modifier = Modifier.fillMaxWidth())
+                    }
+                    Text("تشغيل متتابع للمقاطع وفق القص والترتيب؛ قد يظهر توقف قصير عند الانتقال بين الملفات.",
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 if (selectedClipIndex >= 0) {
-                    OutlinedButton(onClick = { showLiveClipPreview = !showLiveClipPreview },
+                    OutlinedButton(onClick = { showLiveClipPreview = !showLiveClipPreview; if (showLiveClipPreview) showSequencePreview = false },
                         enabled = !busy) {
                         Text(if (showLiveClipPreview) "إغلاق تشغيل الفيديو" else "معاينة تشغيل المقطع المحدد")
                     }
