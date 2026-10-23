@@ -151,6 +151,11 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                     FilterChip(selected = state.filter == MediaFilter.VIDEOS, onClick = { vm.setFilter(MediaFilter.VIDEOS) }, label = { Text("الفيديوهات") })
                     FilterChip(selected = state.filter == MediaFilter.FAVORITES, onClick = { vm.setFilter(MediaFilter.FAVORITES) }, label = { Text("المفضلة") })
                 }
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("الترتيب", style = MaterialTheme.typography.labelLarge)
+                    FilterChip(selected = state.sort == MediaSort.NEWEST, onClick = { vm.setSort(MediaSort.NEWEST) }, label = { Text("الأحدث") })
+                    FilterChip(selected = state.sort == MediaSort.OLDEST, onClick = { vm.setSort(MediaSort.OLDEST) }, label = { Text("الأقدم") })
+                }
                 if (partialAccess) {
                     Text("الوصول محدود للصور المختارة فقط. يمكنك توسيع الإذن من إعدادات التطبيق.", color = Blue, modifier = Modifier.padding(horizontal = 16.dp))
                     TextButton(onClick = { launcher.launch(needed) }) { Text("تحديث إذن الصور") }
