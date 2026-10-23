@@ -399,7 +399,7 @@ fun PhotoEditorSection(
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Box(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(320.dp)
@@ -408,11 +408,17 @@ fun PhotoEditorSection(
                 ) {
                     val rotatedAspect = if (rotation == 90 || rotation == 270) 1f / intrinsicAspect.coerceAtLeast(0.01f) else intrinsicAspect
                     val frameAspect = (if (cropRatio > 0f) cropRatio else rotatedAspect).coerceIn(0.1f, 10f)
+                    // Fit the entire transformed image inside BOTH viewport bounds.
+                    // A height-first aspectRatio modifier can overflow narrow devices.
+                    val availableWidth = maxWidth * 0.96f
+                    val availableHeight = maxHeight * 0.94f
+                    val imageWidth = minOf(availableWidth, availableHeight * frameAspect)
+                    val imageHeight = imageWidth / frameAspect
 
                     Box(
                         modifier = Modifier
-                            .aspectRatio(frameAspect, matchHeightConstraintsFirst = true)
-                            .fillMaxHeight(0.94f)
+                            .width(imageWidth)
+                            .height(imageHeight)
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color.Black),
                         contentAlignment = Alignment.Center
