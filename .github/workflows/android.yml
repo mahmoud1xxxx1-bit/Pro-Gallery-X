@@ -26,9 +26,19 @@ jobs:
         run: gradle --no-daemon --stacktrace :app:testDebugUnitTest
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Verify APK integrity, signature and package metadata
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | tee apk-badging.txt
+          grep -q "package: name='com.progalleryx.app'" apk-badging.txt
+          grep -q "sdkVersion:'26'" apk-badging.txt
+          unzip -t "$APK" | tail -1
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Pro-Gallery-X-debug
           path: app/build/outputs/apk/debug/*.apk
+

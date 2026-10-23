@@ -21,16 +21,22 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.ui.text.font.FontWeight
+
 @Composable
 fun VideoEditorSection(
     busy: Boolean,
     onBusyChange: (Boolean) -> Unit,
-    onMessageChange: (String) -> Unit
+    onMessageChange: (String) -> Unit,
+    initialVideoUri: Uri? = null,
+    onClose: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var selectedVideo by remember { mutableStateOf<Uri?>(null) }
+    var selectedVideo by remember(initialVideoUri) { mutableStateOf<Uri?>(initialVideoUri) }
     var videoDuration by remember { mutableFloatStateOf(0f) }
     var videoInfoValid by remember { mutableStateOf(false) }
     var startSecond by remember { mutableFloatStateOf(0f) }
@@ -87,6 +93,27 @@ fun VideoEditorSection(
             } finally {
                 retriever.release()
             }
+        }
+    }
+
+    LaunchedEffect(initialVideoUri) {
+        val uri = initialVideoUri ?: return@LaunchedEffect
+        selectedVideo = uri
+        videoInfoValid = false
+        val retriever = android.media.MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(context, uri)
+            val seconds = (retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L) / 1000f
+            if (seconds >= 0.5f && seconds.isFinite()) {
+                videoDuration = seconds
+                splitSecond = (seconds / 2f).coerceIn(0.5f, (seconds - 0.5f).coerceAtLeast(0.5f))
+                videoInfoValid = true
+                startSecond = 0f
+                endSecond = videoDuration
+            }
+        } catch (_: Exception) {}
+        finally {
+            retriever.release()
         }
     }
 
@@ -266,6 +293,19 @@ fun VideoEditorSection(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (onClose != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onClose) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "رجوع")
+                }
+                Text("محرر الفيديو", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(48.dp))
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Button(onClick = { videoInput.launch("video/*") }, enabled = !busy, modifier = Modifier.weight(1f)) {
                 Text(if (selectedVideo == null) "اختيار فيديو للقص" else "تغيير الفيديو")

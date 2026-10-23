@@ -25,16 +25,22 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.ui.text.font.FontWeight
+
 @Composable
 fun PhotoEditorSection(
     busy: Boolean,
     onBusyChange: (Boolean) -> Unit,
-    onMessageChange: (String) -> Unit
+    onMessageChange: (String) -> Unit,
+    initialImageUri: Uri? = null,
+    onClose: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var editSource by remember { mutableStateOf<Uri?>(null) }
+    var editSource by remember(initialImageUri) { mutableStateOf<Uri?>(initialImageUri) }
     var brightness by remember { mutableFloatStateOf(0f) }
     var contrast by remember { mutableFloatStateOf(1f) }
     var saturation by remember { mutableFloatStateOf(1f) }
@@ -176,6 +182,19 @@ fun PhotoEditorSection(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (onClose != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onClose) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "رجوع")
+                }
+                Text("محرر الصور", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(48.dp))
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
