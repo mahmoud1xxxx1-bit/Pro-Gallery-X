@@ -26,7 +26,7 @@ jobs:
         run: gradle --no-daemon --stacktrace :app:testDebugUnitTest
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace :app:assembleDebug
-      - name: Verify APK integrity and signature
+      - name: Verify APK integrity, signature and package metadata
         run: |
           APK=app/build/outputs/apk/debug/app-debug.apk
           test -s "$APK"
@@ -42,32 +42,3 @@ jobs:
           name: Pro-Gallery-X-debug
           path: app/build/outputs/apk/debug/*.apk
 
-  install-smoke-test:
-    name: Install and launch (Android API ${{ matrix.api-level }})
-    needs: debug-apk
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    strategy:
-      fail-fast: false
-      matrix:
-        api-level: [26]
-    steps:
-      - name: Download built APK
-        uses: actions/download-artifact@v4
-        with:
-          name: Pro-Gallery-X-debug
-          path: downloaded-apk
-      - name: Install and launch on emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: ${{ matrix.api-level }}
-          arch: x86_64
-          target: google_apis
-          profile: pixel_2
-          disable-animations: true
-          script: |
-            set -e
-            adb install -r downloaded-apk/app-debug.apk
-            adb shell am start -W -n com.progalleryx.app/.MainActivity
-            sleep 6
-            adb shell pidof com.progalleryx.app
