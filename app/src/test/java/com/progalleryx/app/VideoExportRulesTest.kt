@@ -87,4 +87,29 @@ class VideoExportRulesTest {
         }
     }
 
+    @Test fun timelineEditsPreserveClipIdentityAndOrdering() {
+        val original = listOf("a", "b", "c")
+        org.junit.Assert.assertEquals(listOf("b", "c", "a"), ClipSequenceTimelineRules.moveClip(original, 0, 2))
+        org.junit.Assert.assertEquals(listOf("a", "c"), ClipSequenceTimelineRules.removeClip(original, 1))
+        org.junit.Assert.assertEquals(original, ClipSequenceTimelineRules.moveClip(original, 1, 1))
+        org.junit.Assert.assertEquals(listOf("a", "b", "c"), original)
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.moveClip(original, -1, 0)
+        }
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.removeClip(original, 3)
+        }
+    }
+
+    @Test fun selectedTimelineDurationAndCursorRemainBounded() {
+        val clips = listOf(Triple("a", 1000L, 3000L), Triple("b", 0L, 900L))
+        org.junit.Assert.assertEquals(2900L, ClipSequenceTimelineRules.selectedDurationMs(clips))
+        org.junit.Assert.assertEquals(899L, ClipSequenceTimelineRules.recommendedCursorAfterRemoval(5000L, 900L))
+        org.junit.Assert.assertEquals(0L, ClipSequenceTimelineRules.recommendedCursorAfterRemoval(-1L, 900L))
+        org.junit.Assert.assertEquals(0L, ClipSequenceTimelineRules.recommendedCursorAfterRemoval(900L, 0L))
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.selectedDurationMs(listOf(Triple("a", 0L, 1000L)))
+        }
+    }
+
 }
