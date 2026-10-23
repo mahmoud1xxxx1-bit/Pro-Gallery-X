@@ -13,6 +13,9 @@ import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.io.File
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 data class PhotoAdjustments(val brightness: Float = 0f, val contrast: Float = 1f, val saturation: Float = 1f, val rotation: Int = 0, val flipHorizontal: Boolean = false, val flipVertical: Boolean = false, val cropRatio: Float = 0f, val jpegQuality: Int = 92)
 
@@ -74,9 +77,17 @@ object PhotoEditor {
                     Canvas(output).drawBitmap(transformed, -(transformed.width - cropWidth) / 2f, -(transformed.height - cropHeight) / 2f, Paint(Paint.FILTER_BITMAP_FLAG).apply {
                         colorFilter = ColorMatrixColorFilter(colors)
                     })
-                    context.contentResolver.openOutputStream(destination, "w")?.use { stream ->
-                        if (!output.compress(Bitmap.CompressFormat.JPEG, settings.jpegQuality, stream)) throw IOException("Export failed")
-                    } ?: throw IOException("Output permission denied")
+                    val temp = File.createTempFile("pgx_photo_", ".jpg", context.cacheDir)
+                    try {
+                        temp.outputStream().use { stream ->
+                            if (!output.compress(Bitmap.CompressFormat.JPEG, settings.jpegQuality, stream)) throw IOException("JPEG encoding failed")
+                        }
+                        if (temp.length() <= 0L) throw IOException("Empty JPEG export")
+                        currentCoroutineContext().ensureActive()
+                        context.contentResolver.openOutputStream(destination, "w")?.use { stream ->
+                            temp.inputStream().use { it.copyTo(stream, 256 * 1024) }
+                        } ?: throw IOException("Output permission denied")
+                    } finally { temp.delete() }
                 } finally { output.recycle(); if (transformed !== upright) transformed.recycle() }
                 } finally { if (upright !== bitmap) upright.recycle() }
             } finally { bitmap.recycle() }
