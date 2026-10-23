@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 enum class MediaFilter { ALL, PHOTOS, VIDEOS, FAVORITES }
+enum class MediaSort { NEWEST, OLDEST }
 data class GalleryAlbum(val id: Long, val title: String, val count: Int)
 data class GalleryMedia(val id: Long, val uri: Uri, val video: Boolean, val date: Long)
 
@@ -35,7 +36,7 @@ class MediaRepository(private val context: Context) {
     }
 
     /** Queries at most [count] records from MediaStore. No image bitmap is decoded here. */
-    suspend fun page(offset: Int, count: Int = 80, filter: MediaFilter = MediaFilter.ALL, albumId: Long? = null, search: String = ""): List<GalleryMedia> =
+    suspend fun page(offset: Int, count: Int = 80, filter: MediaFilter = MediaFilter.ALL, albumId: Long? = null, search: String = "", sort: MediaSort = MediaSort.NEWEST): List<GalleryMedia> =
         withContext(Dispatchers.IO) {
             require(offset >= 0 && count in 1..200)
             val idColumn = MediaStore.Files.FileColumns._ID
@@ -58,7 +59,7 @@ class MediaRepository(private val context: Context) {
                 putString(ContentResolver.QUERY_ARG_SQL_SELECTION, searchWhere)
                 putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, searchValues)
                 putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(dateColumn, idColumn))
-                putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
+                putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, if (sort == MediaSort.NEWEST) ContentResolver.QUERY_SORT_DIRECTION_DESCENDING else ContentResolver.QUERY_SORT_DIRECTION_ASCENDING)
                 putInt(ContentResolver.QUERY_ARG_LIMIT, count)
                 putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
             }
