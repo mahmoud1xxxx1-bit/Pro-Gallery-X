@@ -24,7 +24,7 @@ object PhotoEditor {
     suspend fun export(context: Context, source: Uri, destination: Uri, settings: PhotoAdjustments) =
         withContext(Dispatchers.IO) {
             require(source != destination) { "Original and output must be different" }
-            require(settings.brightness in -100f..100f && settings.contrast in 0.5f..1.5f && settings.saturation in 0f..2f && settings.rotation in listOf(0, 90, 180, 270) && settings.cropRatio in listOf(0f, 1f, 4f / 3f, 16f / 9f) && settings.jpegQuality in 70..100 && settings.caption.length <= 80 && settings.captionSize in 16..72 && settings.captionPosition in 0.1f..0.9f && settings.maxDimension in listOf(1200, 2400, 3600) && settings.cropX in 0f..1f && settings.cropY in 0f..1f)
+            require(settings.brightness in -100f..100f && settings.contrast in 0.5f..1.5f && settings.saturation in 0f..2f && settings.rotation in listOf(0, 90, 180, 270) && settings.cropRatio in listOf(0f, 1f, 4f / 3f, 16f / 9f, 3f / 4f, 9f / 16f) && settings.jpegQuality in 70..100 && settings.caption.length <= 80 && settings.captionSize in 16..72 && settings.captionPosition in 0.1f..0.9f && settings.maxDimension in listOf(1200, 2400, 3600) && settings.cropX in 0f..1f && settings.cropY in 0f..1f)
             val orientation = runCatching {
                 context.contentResolver.openInputStream(source)?.use {
                     ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
