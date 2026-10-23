@@ -16,6 +16,13 @@ class VideoExportRulesTest {
         assertFalse(VideoExportRules.validTrim(1000, 6000, 5000))
         assertFalse(VideoExportRules.validTrim(0, 500, 0))
     }
+    @Test fun splitRequiresTwoUsableSegments() {
+        assertTrue(VideoExportRules.validSplit(500, 1000))
+        assertTrue(VideoExportRules.validSplit(2500, 5000))
+        assertFalse(VideoExportRules.validSplit(499, 5000))
+        assertFalse(VideoExportRules.validSplit(4501, 5000))
+        assertFalse(VideoExportRules.validSplit(500, 999))
+    }
     @Test fun validatesFramePositions() {
         assertTrue(VideoExportRules.validFrame(0, 1000))
         assertTrue(VideoExportRules.validFrame(1000, 1000))

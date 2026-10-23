@@ -100,6 +100,25 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             }
         }
     }
+    var splitSecondHalf by remember { mutableStateOf(false) }
+    var splitSecond by remember { mutableFloatStateOf(0.5f) }
+    val splitOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { target ->
+        val source = selectedVideo
+        if (!busy && source != null && target != null && videoInfoValid) {
+            val positionMs = (splitSecond * 1000f).toLong()
+            val half = splitSecondHalf
+            val mute = muteVideoAudio
+            busy = true
+            scope.launch {
+                try {
+                    VideoEditor.splitPart(context, source, target, positionMs, half, mute)
+                    message = "تم حفظ جزء الفيديو المحدد"
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (error: Exception) { message = "تعذر تقسيم الفيديو: ${error.localizedMessage}" }
+                finally { busy = false }
+            }
+        }
+    }
     val videoInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedVideo = uri
         videoInfoValid = false
@@ -110,6 +129,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 val seconds = (retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L) / 1000f
                 if (seconds < 0.5f || !seconds.isFinite()) throw IllegalArgumentException("Video duration unavailable")
                 videoDuration = seconds
+                splitSecond = (seconds / 2f).coerceIn(0.5f, (seconds - 0.5f).coerceAtLeast(0.5f))
                 videoInfoValid = true
                 startSecond = 0f
                 endSecond = videoDuration
@@ -458,6 +478,23 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Slider(value = endSecond, onValueChange = { endSecond = it.coerceAtLeast(startSecond + 0.5f) }, valueRange = 0.5f..videoDuration.coerceAtLeast(1f))
             Row { Checkbox(checked = muteVideoAudio, onCheckedChange = { muteVideoAudio = it }); Text("تصدير بدون صوت") }
             Text("تأكد أن النهاية لا تتجاوز مدة الفيديو. يدعم التصدير وفق إمكانات الجهاز.")
+            Text("تقسيم الفيديو إلى جزأين", style = MaterialTheme.typography.titleMedium)
+            if (videoDuration >= 1f) {
+                Text("موضع التقسيم: ${"%.1f".format(splitSecond)} ثانية")
+                Slider(value = splitSecond.coerceIn(0.5f, videoDuration - 0.5f),
+                    onValueChange = { splitSecond = it },
+                    valueRange = 0.5f..(videoDuration - 0.5f), enabled = !busy)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FilterChip(selected = !splitSecondHalf, onClick = { splitSecondHalf = false },
+                        label = { Text("الجزء الأول") }, enabled = !busy)
+                    Spacer(Modifier.width(8.dp))
+                    FilterChip(selected = splitSecondHalf, onClick = { splitSecondHalf = true },
+                        label = { Text("الجزء الثاني") }, enabled = !busy)
+                }
+                OutlinedButton(onClick = { splitOutput.launch(if (splitSecondHalf) "ProGalleryX-part2.mp4" else "ProGalleryX-part1.mp4") },
+                    enabled = !busy && videoInfoValid && VideoExportRules.validSplit((splitSecond * 1000).toLong(), (videoDuration * 1000).toLong()),
+                    modifier = Modifier.fillMaxWidth()) { Text("تصدير الجزء المحدد") }
+            }
             OutlinedButton(onClick = { frameOutput.launch("ProGalleryX-frame.jpg") },
                 enabled = !busy && videoInfoValid, modifier = Modifier.fillMaxWidth()) {
                 Text("حفظ صورة JPEG عند وقت البداية المحدد")

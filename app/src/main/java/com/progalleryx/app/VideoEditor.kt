@@ -11,6 +11,8 @@ import androidx.media3.transformer.ExportException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.io.File
 import java.io.IOException
 import kotlin.coroutines.resume
@@ -18,6 +20,22 @@ import kotlin.coroutines.resumeWithException
 
 /** Single-clip on-device export; originals are always read-only. */
 object VideoEditor {
+    /** Export either side of a split using the same validated Media3 trim pipeline. */
+    suspend fun splitPart(context: Context, input: Uri, output: Uri, splitMs: Long, secondHalf: Boolean, muteAudio: Boolean = false) {
+        val duration = withContext(Dispatchers.IO) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, input)
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                    ?: throw IOException("Unknown video duration")
+            } finally { retriever.release() }
+        }
+        require(VideoExportRules.validSplit(splitMs, duration)) { "Both split segments must be at least 500 ms" }
+        trimToDocument(context, input, output,
+            if (secondHalf) splitMs else 0L,
+            if (secondHalf) duration else splitMs, muteAudio)
+    }
+
     suspend fun trimToDocument(context: Context, input: Uri, output: Uri, startMs: Long, endMs: Long, muteAudio: Boolean = false) {
         require(startMs >= 0 && endMs > startMs && endMs - startMs >= 500) { "Invalid trim window" }
         require(input != output) { "Source and output must differ" }
@@ -58,6 +76,7 @@ object VideoEditor {
                     catch (error: Exception) { if (continuation.isActive) continuation.resumeWithException(error) }
                 }
             }
+            currentCoroutineContext().ensureActive()
             if (!temp.exists() || temp.length() == 0L) throw IOException("Video export produced an empty file")
             withContext(Dispatchers.IO) {
                 context.contentResolver.openOutputStream(output, "w")?.use { destination ->
