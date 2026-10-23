@@ -58,6 +58,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var mutedJoinClips by remember { mutableStateOf<Set<Uri>>(emptySet()) }
     var previousJoinRanges by remember { mutableStateOf<Map<Uri, Pair<Float, Float>>?>(null) }
     var timelineCursorMs by remember { mutableFloatStateOf(0f) }
+    var showLiveClipPreview by remember { mutableStateOf(false) }
     var timelinePreviewFrame by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var timelinePreviewMessage by remember { mutableStateOf("") }
     val joinOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { dest ->
@@ -892,6 +893,25 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 }
                 if (timelinePreviewMessage.isNotEmpty()) {
                     Text(timelinePreviewMessage, style = MaterialTheme.typography.bodySmall)
+                }
+                if (selectedClipIndex >= 0) {
+                    OutlinedButton(onClick = { showLiveClipPreview = !showLiveClipPreview },
+                        enabled = !busy) {
+                        Text(if (showLiveClipPreview) "إغلاق تشغيل الفيديو" else "معاينة تشغيل المقطع المحدد")
+                    }
+                    if (showLiveClipPreview) {
+                        val playbackClip = timelineSegments[selectedClipIndex]
+                        key(playbackClip.source, playbackClip.sourceStartMs, playbackClip.sourceEndMs) {
+                            TrimmedClipPlayback(
+                                source = playbackClip.source,
+                                trimStartMs = playbackClip.sourceStartMs,
+                                trimEndMs = playbackClip.sourceEndMs,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        Text("المعاينة تشغّل المقطع المحدد فقط ضمن حدود القص؛ ليست تشغيلًا متصلًا لجميع المقاطع.",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
                 }
                 Text("موضع المؤشر: ${ClipSequenceTimelineRules.formatTime(cursor.toLong())} / ${ClipSequenceTimelineRules.formatTime(timelineDurationMs)}")
                 Slider(
