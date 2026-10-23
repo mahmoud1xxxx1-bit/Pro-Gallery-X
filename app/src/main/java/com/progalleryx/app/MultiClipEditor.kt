@@ -125,7 +125,7 @@ data class TimelineSegment<T>(
     val timelineEndMs: Long get() = timelineStartMs + durationMs
 }
 
-object VideoTimelineRules {
+object ClipSequenceTimelineRules {
     const val MIN_CLIP_MS = 500L
     const val MAX_TOTAL_MS = 6L * 60L * 60L * 1000L
 
