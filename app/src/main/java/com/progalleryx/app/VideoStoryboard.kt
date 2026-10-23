@@ -12,6 +12,30 @@ import java.io.IOException
 
 /** Small, bounded frame strip to preview cuts without uploading a video. */
 object VideoStoryboard {
+    /** Decode one bounded preview frame at the selected original-source timestamp. */
+    suspend fun frameAt(context: Context, uri: Uri, positionMs: Long): Bitmap = withContext(Dispatchers.IO) {
+        require(positionMs >= 0L) { "Negative preview timestamp" }
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(context, uri)
+            val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull() ?: throw IOException("Unknown clip duration")
+            require(duration >= 500L) { "Video is too short" }
+            val requested = positionMs.coerceAtMost(duration - 1L) * 1000L
+            (if (android.os.Build.VERSION.SDK_INT >= 27) {
+                retriever.getScaledFrameAtTime(requested, MediaMetadataRetriever.OPTION_CLOSEST, 480, 270)
+            } else {
+                retriever.getFrameAtTime(requested, MediaMetadataRetriever.OPTION_CLOSEST)?.let { original ->
+                    val result = Bitmap.createScaledBitmap(original, 480, 270, true)
+                    if (original !== result) original.recycle()
+                    result
+                }
+            }) ?: throw IOException("Could not decode preview frame")
+        } finally {
+            retriever.release()
+        }
+    }
+
     suspend fun generate(context: Context, uri: Uri, count: Int = 8): List<Bitmap> = withContext(Dispatchers.IO) {
         require(count in 2..12)
         val retriever = MediaMetadataRetriever()
