@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -56,6 +58,8 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var mutedJoinClips by remember { mutableStateOf<Set<Uri>>(emptySet()) }
     var previousJoinRanges by remember { mutableStateOf<Map<Uri, Pair<Float, Float>>?>(null) }
     var timelineCursorMs by remember { mutableFloatStateOf(0f) }
+    var timelinePreviewFrame by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var timelinePreviewMessage by remember { mutableStateOf("") }
     val joinOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { dest ->
         if (!busy && dest != null && clipsToJoin.size in 2..12) {
             val orderedClips = clipsToJoin.mapNotNull { uri -> joinRanges[uri]?.let { VideoJoinPart(uri, (it.first * 1000f).toLong(), (it.second * 1000f).toLong(), uri in mutedJoinClips) } }
@@ -862,6 +866,33 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 val cursor = timelineCursorMs.coerceIn(0f, timelineDurationMs.toFloat())
                 val selectedClipIndex = ClipSequenceTimelineRules.clipIndexAt(timelineSegments, cursor.toLong())
                 val sourcePosition = ClipSequenceTimelineRules.sourcePositionAt(timelineSegments, cursor.toLong())
+                val frameSource = sourcePosition?.first
+                val frameTimestamp = sourcePosition?.second ?: -1L
+                LaunchedEffect(frameSource, frameTimestamp / 500L) {
+                    timelinePreviewFrame = null
+                    timelinePreviewMessage = ""
+                    if (frameSource != null && frameTimestamp >= 0L) {
+                        kotlinx.coroutines.delay(180L)
+                        try {
+                            timelinePreviewFrame = VideoStoryboard.frameAt(context, frameSource, frameTimestamp)
+                        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            timelinePreviewMessage = "تعذر عرض إطار المعاينة لهذا المقطع"
+                        }
+                    }
+                }
+                timelinePreviewFrame?.let { bitmap ->
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "معاينة إطار الفيديو عند موضع المؤشر",
+                        modifier = Modifier.fillMaxWidth().height(190.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+                if (timelinePreviewMessage.isNotEmpty()) {
+                    Text(timelinePreviewMessage, style = MaterialTheme.typography.bodySmall)
+                }
                 Text("موضع المؤشر: ${ClipSequenceTimelineRules.formatTime(cursor.toLong())} / ${ClipSequenceTimelineRules.formatTime(timelineDurationMs)}")
                 Slider(
                     value = cursor,
