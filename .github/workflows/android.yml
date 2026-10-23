@@ -26,9 +26,48 @@ jobs:
         run: gradle --no-daemon --stacktrace :app:testDebugUnitTest
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Verify APK integrity and signature
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | tee apk-badging.txt
+          grep -q "package: name='com.progalleryx.app'" apk-badging.txt
+          grep -q "sdkVersion:'26'" apk-badging.txt
+          unzip -t "$APK" | tail -1
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Pro-Gallery-X-debug
           path: app/build/outputs/apk/debug/*.apk
+
+  install-smoke-test:
+    name: Install and launch (Android API ${{ matrix.api-level }})
+    needs: debug-apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [26, 35]
+    steps:
+      - name: Download built APK
+        uses: actions/download-artifact@v4
+        with:
+          name: Pro-Gallery-X-debug
+          path: downloaded-apk
+      - name: Install and launch on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          target: google_apis
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            set -e
+            adb install -r downloaded-apk/app-debug.apk
+            adb shell am start -W -n com.progalleryx.app/.MainActivity
+            sleep 6
+            adb shell pidof com.progalleryx.app
