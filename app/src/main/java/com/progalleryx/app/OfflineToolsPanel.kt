@@ -27,6 +27,10 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var pdfLayout by remember { mutableStateOf(PdfLayout.AUTO) }
     var pdfPaper by remember { mutableStateOf(PdfPaper.A4) }
     var pdfPageNumbers by remember { mutableStateOf(false) }
+    var pdfMergeInputs by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var pdfExtractSource by remember { mutableStateOf<Uri?>(null) }
+    var pdfPageStart by remember { mutableStateOf("1") }
+    var pdfPageEnd by remember { mutableStateOf("1") }
     var imageToRotate by remember { mutableStateOf<Uri?>(null) }
     var message by remember { mutableStateOf("كل المعالجة محلية. لن تُعدّل الملفات الأصلية.") }
     var busy by remember { mutableStateOf(false) }
@@ -158,6 +162,40 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 finally { busy = false }
             }
         }
+    }
+    val mergeOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { target ->
+        if (!busy && target != null && pdfMergeInputs.size in 2..10) {
+            val inputList = pdfMergeInputs.toList()
+            busy = true
+            scope.launch {
+                try { PdfImportTools.merge(context, inputList, target); message = "تم دمج ملفات PDF بنجاح" }
+                catch (error: kotlinx.coroutines.CancellationException) { throw error }
+                catch (error: Exception) { message = "تعذر الدمج: ${error.localizedMessage}" }
+                finally { busy = false }
+            }
+        }
+    }
+    val mergeInput = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { chosen ->
+        pdfMergeInputs = chosen.take(10)
+        message = if (pdfMergeInputs.size >= 2) "ملفات PDF: ${pdfMergeInputs.size}، راجع الترتيب ثم صدر" else "اختر ملفي PDF على الأقل"
+    }
+    val extractOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { target ->
+        val source = pdfExtractSource
+        val start = pdfPageStart.toIntOrNull()
+        val end = pdfPageEnd.toIntOrNull()
+        if (!busy && target != null && source != null && start != null && end != null && start in 1..120 && end in start..120) {
+            busy = true
+            scope.launch {
+                try { PdfImportTools.extract(context, source, target, start..end); message = "تم استخراج الصفحات" }
+                catch (error: kotlinx.coroutines.CancellationException) { throw error }
+                catch (error: Exception) { message = "تعذر استخراج الصفحات: ${error.localizedMessage}" }
+                finally { busy = false }
+            }
+        }
+    }
+    val extractInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { chosen ->
+        pdfExtractSource = chosen
+        pdfPageStart = "1"; pdfPageEnd = "1"
     }
     val pdfInput = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { selected ->
         images = selected.take(100)
@@ -303,6 +341,48 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     enabled = !busy && images.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("تصدير PDF بالترتيب المحدد") }
             }
         }
+            HorizontalDivider()
+            Text("دمج مستندات PDF", style = MaterialTheme.typography.titleLarge)
+            Text("دمج 2–10 ملفات، بحد 120 صفحة. تتم إعادة رسم الصفحات؛ قد لا يبقى النص قابلًا للتحديد.")
+            Button(onClick = { mergeInput.launch("application/pdf") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                Text("اختيار ملفات PDF للدمج")
+            }
+            pdfMergeInputs.forEachIndexed { index, _ ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("مستند ${index + 1}")
+                    TextButton(onClick = {
+                        if (index > 0) {
+                            val list = pdfMergeInputs.toMutableList()
+                            val item = list.removeAt(index)
+                            list.add(index - 1, item)
+                            pdfMergeInputs = list
+                        }
+                    }, enabled = !busy && index > 0) { Text("↑") }
+                    TextButton(onClick = {
+                        if (index < pdfMergeInputs.lastIndex) {
+                            val list = pdfMergeInputs.toMutableList()
+                            val item = list.removeAt(index)
+                            list.add(index + 1, item)
+                            pdfMergeInputs = list
+                        }
+                    }, enabled = !busy && index < pdfMergeInputs.lastIndex) { Text("↓") }
+                }
+            }
+            Button(onClick = { mergeOutput.launch("ProGalleryX-merged.pdf") },
+                enabled = !busy && pdfMergeInputs.size in 2..10, modifier = Modifier.fillMaxWidth()) { Text("تصدير PDF مدمج") }
+            HorizontalDivider()
+            Text("استخراج صفحات PDF", style = MaterialTheme.typography.titleLarge)
+            Button(onClick = { extractInput.launch("application/pdf") }, enabled = !busy) { Text("اختيار ملف PDF") }
+            if (pdfExtractSource != null) {
+                OutlinedTextField(value = pdfPageStart, onValueChange = { pdfPageStart = it.filter(Char::isDigit).take(3) },
+                    label = { Text("من الصفحة") }, singleLine = true)
+                OutlinedTextField(value = pdfPageEnd, onValueChange = { pdfPageEnd = it.filter(Char::isDigit).take(3) },
+                    label = { Text("إلى الصفحة") }, singleLine = true)
+                Button(onClick = { extractOutput.launch("ProGalleryX-pages.pdf") },
+                    enabled = !busy && pdfPageStart.toIntOrNull()?.let { start ->
+                        pdfPageEnd.toIntOrNull()?.let { end -> start in 1..120 && end in start..120 }
+                    } == true) { Text("تصدير الصفحات المحددة") }
+            }
         if (selectedSection == 1) {
             Text("محرر الفيديو", style = MaterialTheme.typography.titleLarge)
             Text("قص ودمج المقاطع وتحديد الصوت")
