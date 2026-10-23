@@ -641,8 +641,22 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     }, enabled = !busy && index < clipsToJoin.lastIndex) { Text("↓") }
                 }
             }
+            clipsToJoin.forEachIndexed { index, uri ->
+                joinRanges[uri]?.let { (start, end) ->
+                    val duration = joinDurations[uri] ?: end
+                    Text("المقطع ${index + 1}: من ${"%.1f".format(start)} إلى ${"%.1f".format(end)} ثانية")
+                    Text("نقطة البداية")
+                    Slider(value = start, onValueChange = { value ->
+                        joinRanges = joinRanges + (uri to (value.coerceAtMost(end - 0.5f) to end))
+                    }, valueRange = 0f..(duration - 0.5f).coerceAtLeast(0f), enabled = !busy)
+                    Text("نقطة النهاية")
+                    Slider(value = end, onValueChange = { value ->
+                        joinRanges = joinRanges + (uri to (start to value.coerceAtLeast(start + 0.5f)))
+                    }, valueRange = 0.5f..duration, enabled = !busy)
+                }
+            }
             Button(onClick = { joinOutput.launch("ProGalleryX-joined.mp4") },
-                enabled = !busy && clipsToJoin.size in 2..12, modifier = Modifier.fillMaxWidth()) {
+                enabled = !busy && clipsToJoin.size in 2..12 && clipsToJoin.all { joinRanges.containsKey(it) }, modifier = Modifier.fillMaxWidth()) {
                 Text("تصدير الفيديو المدمج")
             }
         }
