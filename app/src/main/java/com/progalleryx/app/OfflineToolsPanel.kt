@@ -8,6 +8,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.graphics.graphicsLayer
 import coil.compose.AsyncImage
 import androidx.compose.material3.*
@@ -24,6 +25,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var pdfLayout by remember { mutableStateOf(PdfLayout.AUTO) }
+    var pdfPageNumbers by remember { mutableStateOf(false) }
     var imageToRotate by remember { mutableStateOf<Uri?>(null) }
     var message by remember { mutableStateOf("كل المعالجة محلية. لن تُعدّل الملفات الأصلية.") }
     var busy by remember { mutableStateOf(false) }
@@ -53,7 +55,8 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var muteVideoAudio by remember { mutableStateOf(false) }
     var startSecond by remember { mutableFloatStateOf(0f) }
     var endSecond by remember { mutableFloatStateOf(10f) }
-    var videoDuration by remember { mutableFloatStateOf(10f) }
+    var videoDuration by remember { mutableFloatStateOf(0f) }
+    var videoInfoValid by remember { mutableStateOf(false) }
     val videoOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { target ->
         val source = selectedVideo
         if (!busy && source != null && target != null) {
@@ -76,18 +79,22 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     }
     val videoInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedVideo = uri
+        videoInfoValid = false
         if (uri != null) {
             val retriever = android.media.MediaMetadataRetriever()
             try {
                 retriever.setDataSource(context, uri)
                 val seconds = (retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 10000L) / 1000f
-                videoDuration = seconds.coerceAtLeast(1f)
+                if (seconds < 0.5f || !seconds.isFinite()) throw IllegalArgumentException("Video duration unavailable")
+                videoDuration = seconds
+                videoInfoValid = true
                 startSecond = 0f
                 endSecond = videoDuration
             } catch (ignored: Exception) {
-                videoDuration = 10f
+                videoDuration = 0f
                 startSecond = 0f
-                endSecond = 10f
+                endSecond = 0f
+                message = "لم أتمكن من قراءة مدة الفيديو. اختر مقطعًا صالحًا."
             } finally { retriever.release() }
         }
     }
@@ -125,9 +132,10 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         if (!busy && target != null && images.isNotEmpty()) {
             val selectedImages = images.toList()
             val selectedLayout = pdfLayout
+            val includeNumbers = pdfPageNumbers
             busy = true
             scope.launch {
-                try { OfflineExports.imagesToPdf(context, selectedImages, target, selectedLayout); message = "تم تصدير ملف PDF بنجاح" }
+                try { OfflineExports.imagesToPdf(context, selectedImages, target, selectedLayout, includeNumbers); message = "تم تصدير ملف PDF بنجاح" }
                 catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                 catch (error: Exception) { message = "تعذر تصدير PDF: ${error.localizedMessage}" }
                 finally { busy = false }
@@ -187,11 +195,11 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     model = editSource,
                     contentDescription = "معاينة التعديلات",
                     colorFilter = ColorFilter.colorMatrix(ColorMatrix(photoMatrix.array.copyOf())),
-                    contentScale = ContentScale.Fit,
+                    contentScale = if (cropRatio == 0f) ContentScale.Fit else ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().height(260.dp).graphicsLayer { rotationZ = rotation.toFloat(); scaleX = if (flipHorizontal) -1f else 1f; scaleY = if (flipVertical) -1f else 1f }
                 )
             }
-            Text("معاينة قبل الحفظ", style = MaterialTheme.typography.labelMedium)
+            Text("معاينة الألوان والدوران. حدود القص المعروضة تقريبية عند التدوير.", style = MaterialTheme.typography.labelMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { snapshot(); rotation = (rotation + 90) % 360 }, enabled = !busy) { Text("تدوير 90°") }
                 OutlinedButton(onClick = { snapshot(); flipHorizontal = !flipHorizontal }, enabled = !busy) { Text("أفقي") }
@@ -248,6 +256,10 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                         FilterChip(selected = pdfLayout == mode, onClick = { pdfLayout = mode }, label = { Text(label) }, enabled = !busy)
                     }
                 }
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Checkbox(checked = pdfPageNumbers, onCheckedChange = { pdfPageNumbers = it }, enabled = !busy)
+                    Text("ترقيم صفحات المستند")
+                }
                 Text("صفحات المستند: ${images.size}", style = MaterialTheme.typography.titleMedium)
                 images.take(100).forEachIndexed { index, uri ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -276,13 +288,28 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Text("قص ودمج المقاطع وتحديد الصوت")
         Button(onClick = { videoInput.launch("video/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("اختيار فيديو لقصه") }
         if (selectedVideo != null) {
+            Text("معاينة الفيديو", style = MaterialTheme.typography.titleMedium)
+            key(selectedVideo) {
+                AndroidView(
+                    factory = { ctx -> android.widget.VideoView(ctx).apply {
+                        setVideoURI(selectedVideo)
+                        setOnPreparedListener { player -> player.isLooping = false }
+                        setOnClickListener { if (isPlaying) pause() else start() }
+                    } },
+                    update = { view -> if (view.tag != selectedVideo) { view.setVideoURI(selectedVideo); view.tag = selectedVideo } },
+                    modifier = Modifier.fillMaxWidth().height(220.dp)
+                )
+            }
+            Text("يمكن تشغيل المعاينة بالضغط على الفيديو. المعاينة لا تطبق القص قبل التصدير.")
+            if (videoInfoValid) {
             Text("بداية المقطع: ${startSecond.toInt()} ثانية")
             Slider(value = startSecond, onValueChange = { startSecond = it.coerceAtMost(endSecond - 0.5f) }, valueRange = 0f..(videoDuration - 0.5f).coerceAtLeast(0.5f))
             Text("نهاية المقطع: ${endSecond.toInt()} ثانية")
             Slider(value = endSecond, onValueChange = { endSecond = it.coerceAtLeast(startSecond + 0.5f) }, valueRange = 0.5f..videoDuration.coerceAtLeast(1f))
             Row { Checkbox(checked = muteVideoAudio, onCheckedChange = { muteVideoAudio = it }); Text("تصدير بدون صوت") }
             Text("تأكد أن النهاية لا تتجاوز مدة الفيديو. يدعم التصدير وفق إمكانات الجهاز.")
-            Button(onClick = { videoOutput.launch("ProGalleryX-trimmed.mp4") }, enabled = !busy) { Text("تصدير مقطع MP4") }
+            Button(onClick = { videoOutput.launch("ProGalleryX-trimmed.mp4") }, enabled = !busy && videoInfoValid && endSecond - startSecond >= 0.5f) { Text("تصدير مقطع MP4") }
+            }
         }
         Button(onClick = { joinInput.launch("video/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("دمج مقاطع فيديو (2–12)") }
         if (clipsToJoin.isNotEmpty()) {
