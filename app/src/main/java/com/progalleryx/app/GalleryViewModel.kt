@@ -8,6 +8,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class GalleryState(
     val items: List<GalleryMedia> = emptyList(),
@@ -63,7 +65,7 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
         mutable.value = current.copy(loading = true, error = null)
         request = viewModelScope.launch {
             try {
-                val batch = if (current.filter == MediaFilter.FAVORITES) {
+                val batch = if (current.filter == MediaFilter.FAVORITES) withContext(Dispatchers.IO) {
                     favorites.savedUris().let { if (current.sort == MediaSort.OLDEST) it.reversed() else it }.filter { uri ->
                         if (current.search.isBlank()) true else runCatching {
                             getApplication<Application>().contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
