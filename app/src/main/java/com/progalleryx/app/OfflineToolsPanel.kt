@@ -9,6 +9,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.geometry.Offset
@@ -207,17 +210,21 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var temperature by remember { mutableFloatStateOf(0f) }
     var tint by remember { mutableFloatStateOf(0f) }
     var textLayers by remember { mutableStateOf<List<PhotoTextLayer>>(emptyList()) }
+    var brushStrokes by remember { mutableStateOf<List<BrushStroke>>(emptyList()) }
+    var brushMode by remember { mutableStateOf(false) }
+    var brushDark by remember { mutableStateOf(false) }
+    var brushWidth by remember { mutableFloatStateOf(0.01f) }
     var undoStack by remember { mutableStateOf<List<PhotoAdjustments>>(emptyList()) }
     var redoStack by remember { mutableStateOf<List<PhotoAdjustments>>(emptyList()) }
     var adjustingSlider by remember { mutableStateOf(false) }
     fun snapshot() {
-        undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint, textLayers)).takeLast(30)
+        undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint, textLayers, brushStrokes)).takeLast(30)
         redoStack = emptyList()
     }
     val editedOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { target ->
         val source = editSource
         if (!busy && target != null && source != null) {
-            val adjustments = PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint, textLayers)
+            val adjustments = PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint, textLayers, brushStrokes)
             busy = true
             scope.launch {
                 try { PhotoEditor.export(context, source, target, adjustments); message = "تم تصدير الصورة بنجاح" }
@@ -228,7 +235,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         }
     }
     val editInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) { editSource = uri; showAdjustments = true; brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; undoStack = emptyList(); redoStack = emptyList(); caption = ""; captionDark = false; captionSize = 32; captionPosition = 0.9f; maxDimension = 2400; cropX = 0.5f; cropY = 0.5f; temperature = 0f; tint = 0f; textLayers = emptyList() }
+        if (uri != null) { editSource = uri; showAdjustments = true; brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; undoStack = emptyList(); redoStack = emptyList(); caption = ""; captionDark = false; captionSize = 32; captionPosition = 0.9f; maxDimension = 2400; cropX = 0.5f; cropY = 0.5f; temperature = 0f; tint = 0f; textLayers = emptyList(); brushStrokes = emptyList() }
     }
     val pdfOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { target ->
         if (!busy && target != null && images.isNotEmpty()) {
@@ -332,7 +339,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                         alignment = if (cropRatio == 0f) Alignment.Center else androidx.compose.ui.BiasAlignment(cropX * 2f - 1f, cropY * 2f - 1f),
                         modifier = Modifier.fillMaxSize()
                             .pointerInput(cropRatio) {
-                                if (cropRatio != 0f) detectDragGestures(
+                                if (cropRatio != 0f && !brushMode) detectDragGestures(
                                     onDragStart = { snapshot() },
                                     onDrag = { change, drag ->
                                         change.consume()
@@ -343,6 +350,42 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                             }
                             .graphicsLayer { rotationZ = rotation.toFloat(); scaleX = if (flipHorizontal) -1f else 1f; scaleY = if (flipVertical) -1f else 1f }
                     )
+                    Canvas(modifier = Modifier.fillMaxSize().pointerInput(brushMode, brushDark, brushWidth, brushStrokes.size) {
+                        if (brushMode) detectDragGestures(
+                            onDragStart = { position ->
+                                if (brushStrokes.size < 100) {
+                                    snapshot()
+                                    brushStrokes = brushStrokes + BrushStroke(listOf(
+                                        BrushPoint((position.x / size.width).coerceIn(0f, 1f),
+                                            (position.y / size.height).coerceIn(0f, 1f))), brushDark, brushWidth)
+                                }
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                if (brushStrokes.isNotEmpty()) {
+                                    val current = brushStrokes.last()
+                                    if (current.points.size < 2000) {
+                                        brushStrokes = brushStrokes.dropLast(1) + current.copy(points = current.points +
+                                            BrushPoint((change.position.x / size.width).coerceIn(0f, 1f),
+                                                (change.position.y / size.height).coerceIn(0f, 1f)))
+                                    }
+                                }
+                            }
+                        )
+                    }) {
+                        brushStrokes.forEach { stroke ->
+                            if (stroke.points.isNotEmpty()) {
+                                val path = Path()
+                                stroke.points.forEachIndexed { idx, point ->
+                                    val x = point.x * size.width
+                                    val y = point.y * size.height
+                                    if (idx == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                                }
+                                drawPath(path, color = if (stroke.dark) Color.Black else Color.White,
+                                    style = Stroke(width = size.width * stroke.width, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                            }
+                        }
+                    }
                     textLayers.forEach { layer ->
                         if (layer.text.isNotBlank()) Text(
                             layer.text,
@@ -372,7 +415,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 TextButton(onClick = {
                     val previous = undoStack.last()
-                    redoStack = (redoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint, textLayers)).takeLast(30)
+                    redoStack = (redoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint, textLayers, brushStrokes)).takeLast(30)
                     undoStack = undoStack.dropLast(1)
                     brightness = previous.brightness
                     contrast = previous.contrast
@@ -388,16 +431,16 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     captionPosition = previous.captionPosition
                     maxDimension = previous.maxDimension
                     cropX = previous.cropX; cropY = previous.cropY
-                    temperature = previous.temperature; tint = previous.tint; textLayers = previous.textLayers
+                    temperature = previous.temperature; tint = previous.tint; textLayers = previous.textLayers; brushStrokes = previous.brushStrokes
                 }, enabled = !busy && undoStack.isNotEmpty()) { Text("تراجع") }
                 TextButton(onClick = {
                     val next = redoStack.last()
                     redoStack = redoStack.dropLast(1)
-                    undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint, textLayers)).takeLast(30)
+                    undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition, maxDimension, cropX, cropY, temperature, tint, textLayers, brushStrokes)).takeLast(30)
                     brightness = next.brightness; contrast = next.contrast; saturation = next.saturation
                     rotation = next.rotation; flipHorizontal = next.flipHorizontal; flipVertical = next.flipVertical
                     cropRatio = next.cropRatio; jpegQuality = next.jpegQuality
-                    caption = next.caption; captionDark = next.captionDark; captionSize = next.captionSize; captionPosition = next.captionPosition; maxDimension = next.maxDimension; cropX = next.cropX; cropY = next.cropY; temperature = next.temperature; tint = next.tint; textLayers = next.textLayers
+                    caption = next.caption; captionDark = next.captionDark; captionSize = next.captionSize; captionPosition = next.captionPosition; maxDimension = next.maxDimension; cropX = next.cropX; cropY = next.cropY; temperature = next.temperature; tint = next.tint; textLayers = next.textLayers; brushStrokes = next.brushStrokes
                 }, enabled = !busy && redoStack.isNotEmpty()) { Text("إعادة") }
                 TextButton(onClick = { snapshot(); brightness = 18f; contrast = 1.12f; saturation = 1.18f }, enabled = !busy) { Text("ألوان نابضة") }
                 TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1.08f; saturation = 0f }, enabled = !busy) { Text("أبيض وأسود") }
