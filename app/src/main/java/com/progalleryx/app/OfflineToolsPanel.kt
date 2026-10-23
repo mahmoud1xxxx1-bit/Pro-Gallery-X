@@ -103,6 +103,26 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var endSecond by remember { mutableFloatStateOf(10f) }
     var videoDuration by remember { mutableFloatStateOf(0f) }
     var videoInfoValid by remember { mutableStateOf(false) }
+    var soundtrackUri by remember { mutableStateOf<Uri?>(null) }
+    val soundtrackPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { soundtrackUri = it }
+    val soundtrackOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { target ->
+        val video = selectedVideo
+        val audio = soundtrackUri
+        if (!busy && video != null && audio != null && target != null && videoInfoValid) {
+            val start = (startSecond * 1000f).toLong()
+            val end = (endSecond * 1000f).toLong()
+            busy = true
+            scope.launch {
+                try {
+                    VideoSoundtrackEditor.export(context, video, audio, target, start, end)
+                    message = "تم تصدير الفيديو مع المقطع الصوتي المختار"
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (error: Exception) { message = "تعذر تصدير الصوت: ${error.localizedMessage}" }
+                finally { busy = false }
+            }
+        }
+    }
+
     var storyboardFrames by remember { mutableStateOf<List<android.graphics.Bitmap>>(emptyList()) }
     var storyboardBusy by remember { mutableStateOf(false) }
     var requestedSeekMs by remember { mutableLongStateOf(-1L) }
@@ -734,6 +754,20 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Text("المدة المتوقعة بعد تعديل السرعة: ${VideoSpeedRules.expectedDurationMs(((endSecond - startSecond) * 1000f).toLong().coerceAtLeast(500L), videoSpeed) / 1000f} ثانية")
 
             Text("تأكد أن النهاية لا تتجاوز مدة الفيديو. يدعم التصدير وفق إمكانات الجهاز.")
+            HorizontalDivider()
+            Text("إضافة موسيقى للفيديو", style = MaterialTheme.typography.titleMedium)
+            Text("يستبدل هذا التصدير الصوت الأصلي بمقطع صوتي مستقل. يجب أن يكون الصوت بطول الجزء المختار أو أطول.")
+            OutlinedButton(onClick = { soundtrackPicker.launch("audio/*") }, enabled = !busy) {
+                Text(if (soundtrackUri == null) "اختيار ملف صوتي" else "تغيير الملف الصوتي")
+            }
+            if (soundtrackUri != null) {
+                Text("تم اختيار ملف صوتي؛ سيتم استخدام أول ${(endSecond - startSecond).toInt()} ثانية منه.")
+                OutlinedButton(onClick = { soundtrackUri = null }, enabled = !busy) { Text("إزالة الملف الصوتي") }
+                Button(onClick = { soundtrackOutput.launch("ProGalleryX-with-music.mp4") },
+                    enabled = !busy && videoInfoValid && VideoExportRules.validTrim(
+                        (startSecond * 1000f).toLong(), (endSecond * 1000f).toLong(), (videoDuration * 1000f).toLong()),
+                    modifier = Modifier.fillMaxWidth()) { Text("تصدير فيديو مع الموسيقى") }
+            }
             Text("تقسيم الفيديو إلى جزأين", style = MaterialTheme.typography.titleMedium)
             if (videoDuration >= 1f) {
                 Text("موضع التقسيم: ${"%.1f".format(splitSecond)} ثانية")
