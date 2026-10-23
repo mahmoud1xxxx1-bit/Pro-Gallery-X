@@ -85,6 +85,21 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             }
         }
     }
+    val frameOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { target ->
+        val source = selectedVideo
+        if (!busy && videoInfoValid && source != null && target != null) {
+            val frameTime = (startSecond * 1000).toLong()
+            busy = true
+            scope.launch {
+                try {
+                    VideoFrameExporter.export(context, source, target, frameTime)
+                    message = "تم استخراج صورة ثابتة من الفيديو"
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (error: Exception) { message = "تعذر استخراج الإطار: ${error.localizedMessage}" }
+                finally { busy = false }
+            }
+        }
+    }
     val videoInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedVideo = uri
         videoInfoValid = false
@@ -92,7 +107,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             val retriever = android.media.MediaMetadataRetriever()
             try {
                 retriever.setDataSource(context, uri)
-                val seconds = (retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 10000L) / 1000f
+                val seconds = (retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L) / 1000f
                 if (seconds < 0.5f || !seconds.isFinite()) throw IllegalArgumentException("Video duration unavailable")
                 videoDuration = seconds
                 videoInfoValid = true
@@ -443,6 +458,10 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Slider(value = endSecond, onValueChange = { endSecond = it.coerceAtLeast(startSecond + 0.5f) }, valueRange = 0.5f..videoDuration.coerceAtLeast(1f))
             Row { Checkbox(checked = muteVideoAudio, onCheckedChange = { muteVideoAudio = it }); Text("تصدير بدون صوت") }
             Text("تأكد أن النهاية لا تتجاوز مدة الفيديو. يدعم التصدير وفق إمكانات الجهاز.")
+            OutlinedButton(onClick = { frameOutput.launch("ProGalleryX-frame.jpg") },
+                enabled = !busy && videoInfoValid, modifier = Modifier.fillMaxWidth()) {
+                Text("حفظ صورة JPEG عند وقت البداية المحدد")
+            }
             Button(onClick = { videoOutput.launch("ProGalleryX-trimmed.mp4") }, enabled = !busy && videoInfoValid && endSecond - startSecond >= 0.5f) { Text("تصدير مقطع MP4") }
             }
         }
