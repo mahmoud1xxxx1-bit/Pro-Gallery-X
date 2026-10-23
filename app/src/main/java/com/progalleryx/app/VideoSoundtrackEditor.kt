@@ -21,7 +21,7 @@ import kotlin.coroutines.resumeWithException
 
 /** Add a separate soundtrack to one video, preserving original source files. */
 object VideoSoundtrackEditor {
-    suspend fun export(context: Context, video: Uri, soundtrack: Uri, output: Uri, startMs: Long, endMs: Long) {
+    suspend fun export(context: Context, video: Uri, soundtrack: Uri, output: Uri, startMs: Long, endMs: Long, audioOffsetMs: Long = 0L) {
         require(video != soundtrack && output != video && output != soundtrack)
         val duration = withContext(Dispatchers.IO) {
             val retriever = android.media.MediaMetadataRetriever()
@@ -40,7 +40,7 @@ object VideoSoundtrackEditor {
                     ?: throw IOException("Audio duration unavailable")
             } finally { retriever.release() }
         }
-        require(soundtrackDuration >= endMs - startMs) { "Soundtrack must cover the selected clip" }
+        require(SoundtrackRules.validWindow(audioOffsetMs, endMs - startMs, soundtrackDuration)) { "Soundtrack window exceeds audio duration" }
         val temp = File.createTempFile("pgx_soundtrack_", ".mp4", context.cacheDir)
         try {
             if (!temp.delete()) throw IOException("Cannot prepare file")
@@ -53,7 +53,8 @@ object VideoSoundtrackEditor {
                         listOf(EditedMediaItem.Builder(videoItem).setRemoveAudio(true).build())).build()
                     val audioItem = MediaItem.Builder().setUri(soundtrack)
                         .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder()
-                            .setEndPositionMs(endMs - startMs).build()).build()
+                            .setStartPositionMs(audioOffsetMs)
+                            .setEndPositionMs(SoundtrackRules.endMs(audioOffsetMs, endMs - startMs, soundtrackDuration)).build()).build()
                     val audioSequence = EditedMediaItemSequence.Builder(
                         listOf(EditedMediaItem.Builder(audioItem).setRemoveVideo(true).build())).build()
                     val composition = Composition.Builder(listOf(videoSequence, audioSequence)).build()
