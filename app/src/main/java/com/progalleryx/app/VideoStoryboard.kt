@@ -21,9 +21,8 @@ object VideoStoryboard {
             val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
                 ?: throw IOException("Unable to read video duration")
             require(duration >= 500) { "Video too short" }
-            for (i in 0 until count) {
+            for (timestamp in VideoTimelineRules.sampleTimes(duration, count)) {
                 currentCoroutineContext().ensureActive()
-                val timestamp = (duration * i / (count - 1)).coerceAtMost(duration - 1)
                 val frame = if (android.os.Build.VERSION.SDK_INT >= 27) {
                     retriever.getScaledFrameAtTime(timestamp * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 160, 90)
                 } else {
