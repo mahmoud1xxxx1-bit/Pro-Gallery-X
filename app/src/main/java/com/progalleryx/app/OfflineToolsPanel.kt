@@ -97,6 +97,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         message = if (clipsToJoin.size in 2..12) "رتّب المقاطع ثم صدّر الفيديو" else "اختر مقطعين على الأقل"
     }
     var muteVideoAudio by remember { mutableStateOf(false) }
+    var videoSpeed by remember { mutableFloatStateOf(1f) }
     var startSecond by remember { mutableFloatStateOf(0f) }
     var endSecond by remember { mutableFloatStateOf(10f) }
     var videoDuration by remember { mutableFloatStateOf(0f) }
@@ -110,10 +111,11 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             val startMs = (startSecond * 1000).toLong()
             val endMs = (endSecond * 1000).toLong()
             val removeAudio = muteVideoAudio
+            val exportSpeed = videoSpeed
             busy = true
             scope.launch {
                 try {
-                    VideoEditor.trimToDocument(context, source, target, startMs, endMs, removeAudio)
+                    VideoEditor.trimToDocument(context, source, target, startMs, endMs, removeAudio, exportSpeed)
                     message = "تم تصدير الفيديو"
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     message = "أُلغي تصدير الفيديو"
@@ -705,6 +707,16 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Text("نهاية المقطع: ${endSecond.toInt()} ثانية")
             Slider(value = endSecond, onValueChange = { endSecond = it.coerceAtLeast(startSecond + 0.5f) }, valueRange = 0.5f..videoDuration.coerceAtLeast(1f))
             Row { Checkbox(checked = muteVideoAudio, onCheckedChange = { muteVideoAudio = it }); Text("تصدير بدون صوت") }
+            Text("سرعة الفيديو عند التصدير", style = MaterialTheme.typography.titleMedium)
+            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                VideoSpeedRules.allowed.forEach { speed ->
+                    FilterChip(selected = videoSpeed == speed, onClick = { videoSpeed = speed },
+                        label = { Text("${speed}x") }, enabled = !busy)
+                }
+            }
+            Text("المدة المتوقعة بعد تعديل السرعة: ${VideoSpeedRules.expectedDurationMs(((endSecond - startSecond) * 1000f).toLong().coerceAtLeast(500L), videoSpeed) / 1000f} ثانية")
+
             Text("تأكد أن النهاية لا تتجاوز مدة الفيديو. يدعم التصدير وفق إمكانات الجهاز.")
             Text("تقسيم الفيديو إلى جزأين", style = MaterialTheme.typography.titleMedium)
             if (videoDuration >= 1f) {
