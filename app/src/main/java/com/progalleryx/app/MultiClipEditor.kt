@@ -19,7 +19,7 @@ import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-data class VideoJoinPart(val source: Uri, val startMs: Long, val endMs: Long)
+data class VideoJoinPart(val source: Uri, val startMs: Long, val endMs: Long, val muteAudio: Boolean = false)
 
 /** Concatenate 2–12 video clips on-device. Originals never overwritten. */
 object MultiClipEditor {
@@ -49,7 +49,7 @@ object MultiClipEditor {
                             .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder()
                                 .setStartPositionMs(part.startMs).setEndPositionMs(part.endMs).build())
                             .build()
-                        EditedMediaItem.Builder(item).build()
+                        EditedMediaItem.Builder(item).setRemoveAudio(part.muteAudio).build()
                     }
                     val composition = Composition.Builder(EditedMediaItemSequence.Builder(items).build()).build()
                     val transformer = Transformer.Builder(context).addListener(object : Transformer.Listener {
