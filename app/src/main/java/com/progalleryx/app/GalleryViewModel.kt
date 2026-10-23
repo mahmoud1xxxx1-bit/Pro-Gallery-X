@@ -16,6 +16,7 @@ data class GalleryState(
     val albumId: Long? = null,
     val filter: MediaFilter = MediaFilter.ALL,
     val search: String = "",
+    val sort: MediaSort = MediaSort.NEWEST,
     val loading: Boolean = false,
     val end: Boolean = false,
     val error: String? = null
@@ -38,6 +39,7 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadAlbums() { viewModelScope.launch { runCatching { repository.albums() }.onSuccess { mutable.value = mutable.value.copy(albums = it) } } }
     fun setAlbum(albumId: Long?) { reload(album = albumId) }
+    fun setSort(sort: MediaSort) { if (mutable.value.sort != sort) reload(sort = sort) }
     fun setSearch(value: String) {
         val normalized = value.trim().take(80)
         if (mutable.value.search != normalized) reload(search = normalized)
@@ -47,10 +49,10 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
         if (mutable.value.filter != filter) reload(filter)
     }
 
-    fun reload(filter: MediaFilter = mutable.value.filter, album: Long? = mutable.value.albumId, search: String = mutable.value.search) {
+    fun reload(filter: MediaFilter = mutable.value.filter, album: Long? = mutable.value.albumId, search: String = mutable.value.search, sort: MediaSort = mutable.value.sort) {
         request?.cancel()
         generation++
-        mutable.value = GalleryState(filter = filter, albumId = album, search = search, albums = mutable.value.albums)
+        mutable.value = GalleryState(filter = filter, albumId = album, search = search, sort = sort, albums = mutable.value.albums)
         loadMore()
     }
 
@@ -62,12 +64,18 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
         request = viewModelScope.launch {
             try {
                 val batch = if (current.filter == MediaFilter.FAVORITES) {
-                    favorites.savedUris().drop(current.scanOffset).take(80).mapNotNull { uri ->
+                    favorites.savedUris().let { if (current.sort == MediaSort.OLDEST) it.reversed() else it }.filter { uri ->
+                        if (current.search.isBlank()) true else runCatching {
+                            getApplication<Application>().contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                                cursor.moveToFirst() && cursor.getString(0).orEmpty().contains(current.search, ignoreCase = true)
+                            } ?: false
+                        }.getOrDefault(false)
+                    }.drop(current.scanOffset).take(80).mapNotNull { uri ->
                         runCatching {
                             GalleryMedia(android.content.ContentUris.parseId(uri), uri, uri.pathSegments.contains("video"), 0L)
                         }.getOrNull()
                     }
-                } else repository.page(current.scanOffset, filter = current.filter, albumId = current.albumId, search = current.search)
+                } else repository.page(current.scanOffset, filter = current.filter, albumId = current.albumId, search = current.search, sort = current.sort)
                 if (token != generation) return@launch
                 // Some Android providers ignore offset arguments. Do not create
                 // an infinite list of repeated items in that situation.
