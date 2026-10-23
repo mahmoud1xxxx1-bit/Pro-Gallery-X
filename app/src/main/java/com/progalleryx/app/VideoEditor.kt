@@ -9,6 +9,7 @@ import androidx.media3.common.audio.SpeedProvider
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.ExportException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.Dispatchers
@@ -38,10 +39,11 @@ object VideoEditor {
             if (secondHalf) duration else splitMs, muteAudio)
     }
 
-    suspend fun trimToDocument(context: Context, input: Uri, output: Uri, startMs: Long, endMs: Long, muteAudio: Boolean = false, speed: Float = 1f) {
+    suspend fun trimToDocument(context: Context, input: Uri, output: Uri, startMs: Long, endMs: Long, muteAudio: Boolean = false, speed: Float = 1f, bitrate: Int = VideoQualityRules.AUTO) {
         require(startMs >= 0 && endMs > startMs && endMs - startMs >= 500) { "Invalid trim window" }
         require(input != output) { "Source and output must differ" }
         require(VideoSpeedRules.valid(speed)) { "Unsupported video speed" }
+        require(VideoQualityRules.valid(bitrate)) { "Unsupported output bitrate" }
         withContext(Dispatchers.IO) {
             val metadata = MediaMetadataRetriever()
             try {
@@ -70,7 +72,15 @@ object VideoEditor {
                         override fun getNextSpeedChangeTimeUs(timeUs: Long): Long = C.TIME_UNSET
                     })
                     val editor = builder.build()
-                    val transformer = Transformer.Builder(context)
+                    val transformerBuilder = Transformer.Builder(context)
+                    if (bitrate != VideoQualityRules.AUTO) {
+                        val encoderFactory = DefaultEncoderFactory.Builder(context)
+                            .setRequestedVideoEncoderSettings(
+                                androidx.media3.transformer.VideoEncoderSettings.Builder().setBitrate(bitrate).build()
+                            ).build()
+                        transformerBuilder.setEncoderFactory(encoderFactory)
+                    }
+                    val transformer = transformerBuilder
                         .addListener(object : Transformer.Listener {
                             override fun onCompleted(composition: androidx.media3.transformer.Composition, exportResult: ExportResult) {
                                 if (continuation.isActive) continuation.resume(Unit)
