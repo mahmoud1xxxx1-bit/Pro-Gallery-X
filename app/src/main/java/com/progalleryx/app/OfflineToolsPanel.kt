@@ -802,7 +802,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             val timelineSegments = remember(clipsToJoin, joinRanges) {
                 if (clipsToJoin.size in 2..12 && clipsToJoin.all { joinRanges[it] != null }) {
                     runCatching {
-                        VideoTimelineRules.build(clipsToJoin.map { uri ->
+                        ClipSequenceTimelineRules.build(clipsToJoin.map { uri ->
                             val range = requireNotNull(joinRanges[uri])
                             Triple(uri, (range.first * 1000f).toLong(), (range.second * 1000f).toLong())
                         })
@@ -811,16 +811,16 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             }
             if (timelineSegments != null) {
                 Text("الخط الزمني للمقاطع", style = MaterialTheme.typography.titleMedium)
-                Text("المدة الإجمالية: ${VideoTimelineRules.formatTime(VideoTimelineRules.totalDurationMs(timelineSegments))}")
+                Text("المدة الإجمالية: ${ClipSequenceTimelineRules.formatTime(ClipSequenceTimelineRules.totalDurationMs(timelineSegments))}")
                 Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     timelineSegments.forEachIndexed { index, segment ->
                         ElevatedCard(modifier = Modifier.width(124.dp)) {
                             Column(Modifier.padding(8.dp)) {
                                 Text("مقطع ${index + 1}")
-                                Text("${VideoTimelineRules.formatTime(segment.timelineStartMs)} → ${VideoTimelineRules.formatTime(segment.timelineEndMs)}",
+                                Text("${ClipSequenceTimelineRules.formatTime(segment.timelineStartMs)} → ${ClipSequenceTimelineRules.formatTime(segment.timelineEndMs)}",
                                     style = MaterialTheme.typography.bodySmall)
-                                Text("الطول: ${VideoTimelineRules.formatTime(segment.durationMs)}",
+                                Text("الطول: ${ClipSequenceTimelineRules.formatTime(segment.durationMs)}",
                                     style = MaterialTheme.typography.labelSmall)
                             }
                         }
