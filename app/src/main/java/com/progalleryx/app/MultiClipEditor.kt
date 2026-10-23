@@ -144,6 +144,24 @@ object ClipSequenceTimelineRules {
     fun <T> segmentAt(timeline: List<TimelineSegment<T>>, positionMs: Long): TimelineSegment<T>? =
         timeline.firstOrNull { positionMs >= it.timelineStartMs && positionMs < it.timelineEndMs }
 
+    /** Map a timeline cursor to its source-relative timestamp, clamping the end safely. */
+    fun <T> sourcePositionAt(timeline: List<TimelineSegment<T>>, positionMs: Long): Pair<T, Long>? {
+        if (timeline.isEmpty() || positionMs < 0L) return null
+        val duration = totalDurationMs(timeline)
+        if (duration == 0L) return null
+        val clamped = positionMs.coerceAtMost(duration - 1L)
+        val clip = segmentAt(timeline, clamped) ?: return null
+        return clip.source to (clip.sourceStartMs + clamped - clip.timelineStartMs)
+    }
+
+    fun <T> clipIndexAt(timeline: List<TimelineSegment<T>>, positionMs: Long): Int {
+        if (timeline.isEmpty() || positionMs < 0L) return -1
+        val duration = totalDurationMs(timeline)
+        if (duration == 0L) return -1
+        val position = positionMs.coerceAtMost(duration - 1L)
+        return timeline.indexOfFirst { position >= it.timelineStartMs && position < it.timelineEndMs }
+    }
+
     fun <T> totalDurationMs(timeline: List<TimelineSegment<T>>): Long =
         timeline.lastOrNull()?.timelineEndMs ?: 0L
 

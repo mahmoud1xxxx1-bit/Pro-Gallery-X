@@ -55,4 +55,17 @@ class VideoExportRulesTest {
         }
     }
 
+    @Test fun timelinePlayheadMapsAcrossClipsAndClampsEnd() {
+        val clips = ClipSequenceTimelineRules.build(listOf(
+            Triple("first", 1000L, 3000L), Triple("second", 500L, 4000L)
+        ))
+        org.junit.Assert.assertEquals("first" to 1000L, ClipSequenceTimelineRules.sourcePositionAt(clips, 0L))
+        org.junit.Assert.assertEquals("first" to 2999L, ClipSequenceTimelineRules.sourcePositionAt(clips, 1999L))
+        org.junit.Assert.assertEquals("second" to 500L, ClipSequenceTimelineRules.sourcePositionAt(clips, 2000L))
+        org.junit.Assert.assertEquals("second" to 3999L, ClipSequenceTimelineRules.sourcePositionAt(clips, 5500L))
+        org.junit.Assert.assertEquals(1, ClipSequenceTimelineRules.clipIndexAt(clips, 5500L))
+        org.junit.Assert.assertNull(ClipSequenceTimelineRules.sourcePositionAt(clips, -1L))
+        org.junit.Assert.assertNull(ClipSequenceTimelineRules.sourcePositionAt(emptyList<TimelineSegment<String>>(), 0L))
+    }
+
 }
