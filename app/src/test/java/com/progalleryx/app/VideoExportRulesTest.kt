@@ -30,4 +30,29 @@ class VideoExportRulesTest {
         assertFalse(VideoExportRules.validFrame(1001, 1000))
         assertFalse(VideoExportRules.validFrame(0, 0))
     }
+    @Test fun timelinePositionsAndTrimBoundaries() {
+        val timeline = VideoTimelineRules.build(listOf(
+            Triple("first", 1000L, 3000L),
+            Triple("second", 500L, 4000L)
+        ))
+        org.junit.Assert.assertEquals(0L, timeline[0].timelineStartMs)
+        org.junit.Assert.assertEquals(2000L, timeline[1].timelineStartMs)
+        org.junit.Assert.assertEquals(5500L, VideoTimelineRules.totalDurationMs(timeline))
+        org.junit.Assert.assertEquals("second", VideoTimelineRules.segmentAt(timeline, 2000L)?.source)
+        org.junit.Assert.assertNull(VideoTimelineRules.segmentAt(timeline, 5500L))
+        org.junit.Assert.assertEquals("01:01:01", VideoTimelineRules.formatTime(3661000L))
+    }
+
+    @Test fun timelineRejectsDuplicatesShortClipsAndOverflow() {
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            VideoTimelineRules.build(listOf(Triple("a", 0L, 499L), Triple("b", 0L, 1000L)))
+        }
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            VideoTimelineRules.build(listOf(Triple("a", 0L, 1000L), Triple("a", 0L, 1000L)))
+        }
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            VideoTimelineRules.build(listOf(Triple("a", 0L, Long.MAX_VALUE), Triple("b", 0L, 1000L)))
+        }
+    }
+
 }
