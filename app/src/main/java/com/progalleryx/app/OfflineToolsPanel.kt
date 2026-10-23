@@ -98,6 +98,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     }
     var muteVideoAudio by remember { mutableStateOf(false) }
     var videoSpeed by remember { mutableFloatStateOf(1f) }
+    var videoBitrate by remember { mutableIntStateOf(VideoQualityRules.AUTO) }
     var startSecond by remember { mutableFloatStateOf(0f) }
     var endSecond by remember { mutableFloatStateOf(10f) }
     var videoDuration by remember { mutableFloatStateOf(0f) }
@@ -112,10 +113,11 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             val endMs = (endSecond * 1000).toLong()
             val removeAudio = muteVideoAudio
             val exportSpeed = videoSpeed
+            val exportBitrate = videoBitrate
             busy = true
             scope.launch {
                 try {
-                    VideoEditor.trimToDocument(context, source, target, startMs, endMs, removeAudio, exportSpeed)
+                    VideoEditor.trimToDocument(context, source, target, startMs, endMs, removeAudio, exportSpeed, exportBitrate)
                     message = "تم تصدير الفيديو"
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     message = "أُلغي تصدير الفيديو"
@@ -715,6 +717,20 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                         label = { Text("${speed}x") }, enabled = !busy)
                 }
             }
+            Text("جودة الفيديو المصدّر", style = MaterialTheme.typography.titleMedium)
+            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(
+                    VideoQualityRules.AUTO to "تلقائي",
+                    VideoQualityRules.COMPACT to "مضغوط",
+                    VideoQualityRules.BALANCED to "متوازن",
+                    VideoQualityRules.HIGH to "عالٍ"
+                ).forEach { (target, label) ->
+                    FilterChip(selected = videoBitrate == target, onClick = { videoBitrate = target },
+                        label = { Text(label) }, enabled = !busy)
+                }
+            }
+            Text("المعدل المختار تقديري ويعتمد على دعم الجهاز وترميز الفيديو. حجم الملف يشمل الصوت أيضًا.")
             Text("المدة المتوقعة بعد تعديل السرعة: ${VideoSpeedRules.expectedDurationMs(((endSecond - startSecond) * 1000f).toLong().coerceAtLeast(500L), videoSpeed) / 1000f} ثانية")
 
             Text("تأكد أن النهاية لا تتجاوز مدة الفيديو. يدعم التصدير وفق إمكانات الجهاز.")
