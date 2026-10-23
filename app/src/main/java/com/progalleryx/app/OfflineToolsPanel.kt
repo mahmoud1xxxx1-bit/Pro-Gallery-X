@@ -799,6 +799,36 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         }
         Button(onClick = { joinInput.launch("video/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("دمج مقاطع فيديو (2–12)") }
         if (clipsToJoin.isNotEmpty()) {
+            val timelineSegments = remember(clipsToJoin, joinRanges) {
+                if (clipsToJoin.size in 2..12 && clipsToJoin.all { joinRanges[it] != null }) {
+                    runCatching {
+                        ClipSequenceTimelineRules.build(clipsToJoin.map { uri ->
+                            val range = requireNotNull(joinRanges[uri])
+                            Triple(uri, (range.first * 1000f).toLong(), (range.second * 1000f).toLong())
+                        })
+                    }.getOrNull()
+                } else null
+            }
+            if (timelineSegments != null) {
+                Text("الخط الزمني للمقاطع", style = MaterialTheme.typography.titleMedium)
+                Text("المدة الإجمالية: ${ClipSequenceTimelineRules.formatTime(ClipSequenceTimelineRules.totalDurationMs(timelineSegments))}")
+                Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    timelineSegments.forEachIndexed { index, segment ->
+                        ElevatedCard(modifier = Modifier.width(124.dp)) {
+                            Column(Modifier.padding(8.dp)) {
+                                Text("مقطع ${index + 1}")
+                                Text("${ClipSequenceTimelineRules.formatTime(segment.timelineStartMs)} → ${ClipSequenceTimelineRules.formatTime(segment.timelineEndMs)}",
+                                    style = MaterialTheme.typography.bodySmall)
+                                Text("الطول: ${ClipSequenceTimelineRules.formatTime(segment.durationMs)}",
+                                    style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            } else {
+                Text("الخط الزمني غير جاهز: تأكد من صلاحية جميع المقاطع ونقاط القص.")
+            }
             Text("ترتيب المقاطع", style = MaterialTheme.typography.titleMedium)
             clipsToJoin.forEachIndexed { index, uri ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

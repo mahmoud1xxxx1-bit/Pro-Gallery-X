@@ -112,3 +112,43 @@ object MultiClipEditor {
         } finally { temp.delete() }
     }
 }
+
+
+/** Source-relative clip and cumulative playback position; no media is modified. */
+data class TimelineSegment<T>(
+    val source: T,
+    val sourceStartMs: Long,
+    val sourceEndMs: Long,
+    val timelineStartMs: Long
+) {
+    val durationMs: Long get() = sourceEndMs - sourceStartMs
+    val timelineEndMs: Long get() = timelineStartMs + durationMs
+}
+
+object ClipSequenceTimelineRules {
+    const val MIN_CLIP_MS = 500L
+    const val MAX_TOTAL_MS = 6L * 60L * 60L * 1000L
+
+    fun <T> build(clips: List<Triple<T, Long, Long>>): List<TimelineSegment<T>> {
+        require(clips.size in 2..12) { "Choose 2 to 12 clips" }
+        require(clips.map { it.first }.distinct().size == clips.size) { "Duplicate clips" }
+        var position = 0L
+        return clips.map { (source, start, end) ->
+            require(start >= 0 && end > start && end - start >= MIN_CLIP_MS) { "Invalid trim window" }
+            val duration = end - start
+            require(duration <= MAX_TOTAL_MS - position) { "Timeline too long" }
+            TimelineSegment(source, start, end, position).also { position += duration }
+        }
+    }
+
+    fun <T> segmentAt(timeline: List<TimelineSegment<T>>, positionMs: Long): TimelineSegment<T>? =
+        timeline.firstOrNull { positionMs >= it.timelineStartMs && positionMs < it.timelineEndMs }
+
+    fun <T> totalDurationMs(timeline: List<TimelineSegment<T>>): Long =
+        timeline.lastOrNull()?.timelineEndMs ?: 0L
+
+    fun formatTime(milliseconds: Long): String {
+        val seconds = milliseconds.coerceAtLeast(0L) / 1000L
+        return "%02d:%02d:%02d".format(java.util.Locale.ROOT, seconds / 3600L, seconds / 60L % 60L, seconds % 60L)
+    }
+}
