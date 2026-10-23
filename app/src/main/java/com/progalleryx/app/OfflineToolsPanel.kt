@@ -834,6 +834,14 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     ) { Text("البداية") }
                     OutlinedButton(
                         onClick = {
+                            val current = ClipSequenceTimelineRules.clipIndexAt(timelineSegments, cursor.toLong())
+                            val previous = (current - 1).coerceAtLeast(0)
+                            timelineCursorMs = timelineSegments[previous].timelineStartMs.toFloat()
+                        },
+                        enabled = !busy && timelineDurationMs > 0L
+                    ) { Text("المقطع السابق") }
+                    OutlinedButton(
+                        onClick = {
                             val next = timelineSegments.firstOrNull { it.timelineStartMs > cursor.toLong() }
                             timelineCursorMs = (next?.timelineStartMs ?: timelineDurationMs).toFloat()
                         },
@@ -848,6 +856,9 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                         ElevatedCard(modifier = Modifier.width(124.dp)) {
                             Column(Modifier.padding(8.dp)) {
                                 Text("مقطع ${index + 1}")
+                                TextButton(onClick = {
+                                    timelineCursorMs = segment.timelineStartMs.toFloat()
+                                }, enabled = !busy) { Text("تحديد المقطع") }
                                 Text("${ClipSequenceTimelineRules.formatTime(segment.timelineStartMs)} → ${ClipSequenceTimelineRules.formatTime(segment.timelineEndMs)}",
                                     style = MaterialTheme.typography.bodySmall)
                                 Text("الطول: ${ClipSequenceTimelineRules.formatTime(segment.durationMs)}",
