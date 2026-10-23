@@ -28,6 +28,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     val context = LocalContext.current
     var selectedSection by remember { mutableIntStateOf(0) }
     var duplicateScan by remember { mutableStateOf<DuplicateScan?>(null) }
+    var selectedDuplicateGroup by remember { mutableIntStateOf(-1) }
     val scope = rememberCoroutineScope()
     var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var pdfLayout by remember { mutableStateOf(PdfLayout.AUTO) }
@@ -594,12 +595,33 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 if (result.skipped > 0) Text("تعذر قراءة ${result.skipped} صورة؛ قد تكون النتائج غير مكتملة.")
                 result.groups.forEachIndexed { index, group ->
                     Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("مجموعة ${index + 1} — ${group.photos.size} نسخ", style = MaterialTheme.typography.titleMedium)
-                            group.photos.forEach { photo ->
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    AsyncImage(model = photo.uri, contentDescription = "صورة مكررة", modifier = Modifier.size(48.dp))
-                                    Text(photo.name.ifBlank { "صورة بدون اسم" }, modifier = Modifier.weight(1f))
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("مجموعة ${index + 1} — ${group.photos.size} نسخ", style = MaterialTheme.typography.titleMedium)
+                                TextButton(onClick = {
+                                    selectedDuplicateGroup = if (selectedDuplicateGroup == index) -1 else index
+                                }) { Text(if (selectedDuplicateGroup == index) "إخفاء" else "مراجعة") }
+                            }
+                            Text("يمكن توفير نحو ${group.reclaimableBytes / 1024} KB مع الاحتفاظ بنسخة واحدة.")
+                            if (selectedDuplicateGroup == index) {
+                                group.photos.forEachIndexed { position, photo ->
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        AsyncImage(model = photo.uri, contentDescription = "صورة مكررة", modifier = Modifier.size(64.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(photo.name.ifBlank { "صورة بدون اسم" })
+                                            Text("${photo.bytes / 1024} KB", style = MaterialTheme.typography.labelSmall)
+                                            if (position == 0) Text("النسخة المرجعية — يُنصح بمراجعتها قبل أي حذف", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        TextButton(onClick = {
+                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                                setDataAndType(photo.uri, "image/*")
+                                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            try { context.startActivity(intent) }
+                                            catch (_: android.content.ActivityNotFoundException) { message = "لا يوجد تطبيق لعرض الصورة" }
+                                            catch (error: SecurityException) { message = "تعذر فتح الصورة بسبب الصلاحيات" }
+                                        }) { Text("فتح") }
+                                    }
                                 }
                             }
                         }
