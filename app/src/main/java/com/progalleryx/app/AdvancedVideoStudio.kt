@@ -64,6 +64,8 @@ fun AdvancedVideoStudio(
     var activeTab by remember { mutableStateOf(VideoStudioTab.NONE) }
     var editingOverlay by remember { mutableStateOf<VideoTimedOverlay?>(null) }
     var exportProgress by remember { mutableStateOf<Float?>(null) }
+    var showSavedProjectsDialog by remember { mutableStateOf(false) }
+    var savedProjectsList by remember { mutableStateOf<List<VideoStudioProject>>(emptyList()) }
 
     // --- Playback State ---
     var isPlaying by remember { mutableStateOf(false) }
@@ -364,6 +366,39 @@ fun AdvancedVideoStudio(
                             imageVector = Icons.Default.Redo,
                             contentDescription = "Redo",
                             tint = if (redoStack.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        )
+                    }
+
+                    // Save Project Draft Button
+                    IconButton(
+                        onClick = {
+                            try {
+                                VideoProjectStorage.saveProject(context, project)
+                                onMessageChange(if (isArabic) "تم حفظ مسودة المشروع بنجاح" else "Project draft saved successfully")
+                            } catch (e: Exception) {
+                                onMessageChange(if (isArabic) "فشل حفظ المشروع: ${e.localizedMessage}" else "Failed to save project: ${e.localizedMessage}")
+                            }
+                        },
+                        enabled = project.clips.isNotEmpty() && !busy
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.BookmarkBorder,
+                            contentDescription = if (isArabic) "حفظ المشروع" else "Save Project",
+                            tint = if (project.clips.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        )
+                    }
+
+                    // Open Saved Projects Button
+                    IconButton(
+                        onClick = {
+                            savedProjectsList = VideoProjectStorage.listSavedProjects(context)
+                            showSavedProjectsDialog = true
+                        },
+                        enabled = !busy
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Folder,
+                            contentDescription = if (isArabic) "المشاريع المحفوظة" else "Saved Projects"
                         )
                     }
 
@@ -693,10 +728,10 @@ fun AdvancedVideoStudio(
                     val exportProject = project.copy(targetHeight = height, bitrate = bitrate, aspectRatio = ratio)
                     scope.launch {
                         try {
-                            val savedUri = VideoExportManager.exportProjectToMediaStore(
+                            val savedUri = VideoExportManager.exportProjectToGallery(
                                 context = context,
                                 project = exportProject,
-                                onProgress = { exportProgress = it }
+                                onProgress = { p -> exportProgress = p }
                             )
                             onMessageChange(if (isArabic) "تم حفظ الفيديو بنجاح في المعرض" else "Video saved to Gallery successfully")
                             activeTab = VideoStudioTab.NONE
@@ -722,6 +757,25 @@ fun AdvancedVideoStudio(
             )
         }
         VideoStudioTab.NONE -> {}
+    }
+
+    if (showSavedProjectsDialog) {
+        SavedProjectsDialog(
+            projects = savedProjectsList,
+            onSelectProject = { restoredProject ->
+                pushUndo()
+                project = restoredProject
+                handleSeek(0L)
+                showSavedProjectsDialog = false
+                onMessageChange(if (isArabic) "تم استعادة المشروع بنجاح" else "Project restored successfully")
+            },
+            onDeleteProject = { idToDelete ->
+                VideoProjectStorage.deleteProject(context, idToDelete)
+                savedProjectsList = VideoProjectStorage.listSavedProjects(context)
+            },
+            onDismiss = { showSavedProjectsDialog = false },
+            isArabic = isArabic
+        )
     }
 }
 

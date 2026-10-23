@@ -76,6 +76,8 @@ data class VideoAudioTrack(
 )
 
 data class VideoStudioProject(
+    val id: String = UUID.randomUUID().toString(),
+    val title: String = "Untitled Project",
     val clips: List<VideoClipItem> = emptyList(),
     val overlays: List<VideoTimedOverlay> = emptyList(),
     val soundtrack: VideoAudioTrack? = null,
@@ -86,7 +88,8 @@ data class VideoStudioProject(
     val bitrate: Int = VideoQualityRules.AUTO,
     val selectedClipId: String? = null,
     val selectedOverlayId: String? = null,
-    val playheadMs: Long = 0L
+    val playheadMs: Long = 0L,
+    val createdAt: Long = System.currentTimeMillis()
 ) {
     val totalDurationMs: Long
         get() = clips.sumOf { it.effectiveDurationMs }

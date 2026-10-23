@@ -7,19 +7,42 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 
+data class FrameOverlayState(
+    val timeMs: Long,
+    val activeCount: Int,
+    val hasText: Boolean,
+    val activeTexts: List<String>,
+    val hasSticker: Boolean,
+    val activeStickers: List<String>,
+    val overlayIds: List<String>
+)
+
 object VideoOverlayRenderer {
 
-    fun renderOverlaysToBitmap(
+    fun evaluateOverlayFrame(overlays: List<VideoTimedOverlay>, timeMs: Long): FrameOverlayState {
+        val active = VideoTimelineEngine.activeOverlaysAt(overlays, timeMs)
+        val textOverlays = active.filter { it.type == VideoOverlayType.TEXT && it.text.isNotEmpty() }
+        val stickerOverlays = active.filter { it.type == VideoOverlayType.STICKER && it.stickerEmoji.isNotEmpty() }
+        return FrameOverlayState(
+            timeMs = timeMs,
+            activeCount = active.size,
+            hasText = textOverlays.isNotEmpty(),
+            activeTexts = textOverlays.map { it.text },
+            hasSticker = stickerOverlays.isNotEmpty(),
+            activeStickers = stickerOverlays.map { it.stickerEmoji },
+            overlayIds = active.map { it.id }
+        )
+    }
+
+    fun renderOverlaysToCanvas(
+        canvas: Canvas,
         overlays: List<VideoTimedOverlay>,
         timeMs: Long,
         width: Int,
         height: Int
-    ): Bitmap? {
+    ) {
         val activeOverlays = VideoTimelineEngine.activeOverlaysAt(overlays, timeMs)
-        if (activeOverlays.isEmpty() || width <= 0 || height <= 0) return null
-
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
+        if (activeOverlays.isEmpty() || width <= 0 || height <= 0) return
 
         for (overlay in activeOverlays) {
             val cx = overlay.normalizedX * width
@@ -96,7 +119,20 @@ object VideoOverlayRenderer {
 
             canvas.restore()
         }
+    }
 
+    fun renderOverlaysToBitmap(
+        overlays: List<VideoTimedOverlay>,
+        timeMs: Long,
+        width: Int,
+        height: Int
+    ): Bitmap? {
+        val activeOverlays = VideoTimelineEngine.activeOverlaysAt(overlays, timeMs)
+        if (activeOverlays.isEmpty() || width <= 0 || height <= 0) return null
+
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        renderOverlaysToCanvas(canvas, overlays, timeMs, width, height)
         return bitmap
     }
 }
