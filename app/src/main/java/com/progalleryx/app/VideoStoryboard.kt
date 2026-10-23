@@ -67,3 +67,93 @@ object VideoStoryboard {
         }
     }
 }
+
+
+/**
+ * Preview a single selected source clip with its configured trim boundaries.
+ * Playback does not modify the source or the exported timeline.
+ */
+@androidx.compose.runtime.Composable
+fun TrimmedClipPlayback(
+    source: Uri,
+    trimStartMs: Long,
+    trimEndMs: Long,
+    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier
+) {
+    require(trimStartMs >= 0L && trimEndMs - trimStartMs >= 500L)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var view by androidx.compose.runtime.remember(source) {
+        androidx.compose.runtime.mutableStateOf<android.widget.VideoView?>(null)
+    }
+    var playing by androidx.compose.runtime.remember(source, trimStartMs, trimEndMs) {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+    var error by androidx.compose.runtime.remember(source) { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.compose.runtime.DisposableEffect(source) {
+        onDispose {
+            view?.stopPlayback()
+            view = null
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(playing, source, trimStartMs, trimEndMs) {
+        while (playing) {
+            kotlinx.coroutines.delay(100L)
+            val player = view ?: continue
+            if (!player.isPlaying || player.currentPosition.toLong() >= trimEndMs) {
+                player.pause()
+                playing = false
+                if (player.currentPosition.toLong() >= trimEndMs) {
+                    player.seekTo(trimStartMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+                }
+            }
+        }
+    }
+    androidx.compose.foundation.layout.Column(modifier) {
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { activityContext ->
+                android.widget.VideoView(activityContext).also { video ->
+                    video.setVideoURI(source)
+                    video.setOnPreparedListener {
+                        video.seekTo(trimStartMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+                    }
+                    video.setOnErrorListener { _, _, _ ->
+                        error = true
+                        playing = false
+                        true
+                    }
+                    view = video
+                }
+            },
+            modifier = androidx.compose.ui.Modifier
+                .fillMaxWidth()
+                .height(androidx.compose.ui.unit.Dp(210f))
+        )
+        androidx.compose.foundation.layout.Row {
+            androidx.compose.material3.OutlinedButton(
+                onClick = {
+                    val player = view
+                    if (player != null && !error) {
+                        if (playing) {
+                            player.pause()
+                            playing = false
+                        } else {
+                            val current = player.currentPosition.toLong()
+                            if (current < trimStartMs || current >= trimEndMs) {
+                                player.seekTo(trimStartMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+                            }
+                            player.start()
+                            playing = true
+                        }
+                    }
+                },
+                enabled = !error && view != null
+            ) { androidx.compose.material3.Text(if (playing) "إيقاف مؤقت" else "تشغيل المقطع") }
+            androidx.compose.material3.TextButton(onClick = {
+                view?.pause()
+                view?.seekTo(trimStartMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+                playing = false
+            }) { androidx.compose.material3.Text("إعادة البداية") }
+        }
+        if (error) androidx.compose.material3.Text("تعذر تشغيل هذا الملف على الجهاز")
+    }
+}
