@@ -341,6 +341,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     enabled = !busy && images.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("تصدير PDF بالترتيب المحدد") }
             }
         }
+        if (selectedSection == 2) {
             HorizontalDivider()
             Text("دمج مستندات PDF", style = MaterialTheme.typography.titleLarge)
             Text("دمج 2–10 ملفات، بحد 120 صفحة. تتم إعادة رسم الصفحات؛ قد لا يبقى النص قابلًا للتحديد.")
@@ -383,6 +384,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                         pdfPageEnd.toIntOrNull()?.let { end -> start in 1..120 && end in start..120 }
                     } == true) { Text("تصدير الصفحات المحددة") }
             }
+        }
         if (selectedSection == 1) {
             Text("محرر الفيديو", style = MaterialTheme.typography.titleLarge)
             Text("قص ودمج المقاطع وتحديد الصوت")
