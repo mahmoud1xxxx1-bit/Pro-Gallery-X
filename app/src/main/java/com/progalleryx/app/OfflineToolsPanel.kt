@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
@@ -286,6 +287,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                         contentDescription = "معاينة التعديلات",
                         colorFilter = ColorFilter.colorMatrix(ColorMatrix(photoMatrix.array.copyOf())),
                         contentScale = if (cropRatio == 0f) ContentScale.Fit else ContentScale.Crop,
+                        alignment = if (cropRatio == 0f) Alignment.Center else androidx.compose.ui.BiasAlignment(cropX * 2f - 1f, cropY * 2f - 1f),
                         modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = rotation.toFloat(); scaleX = if (flipHorizontal) -1f else 1f; scaleY = if (flipVertical) -1f else 1f }
                     )
                     if (caption.isNotBlank()) Text(
@@ -299,7 +301,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     )
                 }
             }
-            Text("معاينة الألوان والدوران. حدود القص المعروضة تقريبية عند التدوير.", style = MaterialTheme.typography.labelMedium)
+            Text("المعاينة تستخدم موضع القص المحدد؛ قد تختلف النتيجة النهائية بعد تصحيح اتجاه الكاميرا.", style = MaterialTheme.typography.labelMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { snapshot(); rotation = (rotation + 90) % 360 }, enabled = !busy) { Text("تدوير 90°") }
                 OutlinedButton(onClick = { snapshot(); flipHorizontal = !flipHorizontal }, enabled = !busy) { Text("أفقي") }
