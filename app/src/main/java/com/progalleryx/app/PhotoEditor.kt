@@ -17,14 +17,14 @@ import java.io.File
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
-data class PhotoAdjustments(val brightness: Float = 0f, val contrast: Float = 1f, val saturation: Float = 1f, val rotation: Int = 0, val flipHorizontal: Boolean = false, val flipVertical: Boolean = false, val cropRatio: Float = 0f, val jpegQuality: Int = 92, val caption: String = "", val captionDark: Boolean = false, val captionSize: Int = 32, val captionPosition: Float = 0.9f)
+data class PhotoAdjustments(val brightness: Float = 0f, val contrast: Float = 1f, val saturation: Float = 1f, val rotation: Int = 0, val flipHorizontal: Boolean = false, val flipVertical: Boolean = false, val cropRatio: Float = 0f, val jpegQuality: Int = 92, val caption: String = "", val captionDark: Boolean = false, val captionSize: Int = 32, val captionPosition: Float = 0.9f, val maxDimension: Int = 2400)
 
 /** Offline JPEG export. Source URI is read-only; destination must be a newly selected document. */
 object PhotoEditor {
     suspend fun export(context: Context, source: Uri, destination: Uri, settings: PhotoAdjustments) =
         withContext(Dispatchers.IO) {
             require(source != destination) { "Original and output must be different" }
-            require(settings.brightness in -100f..100f && settings.contrast in 0.5f..1.5f && settings.saturation in 0f..2f && settings.rotation in listOf(0, 90, 180, 270) && settings.cropRatio in listOf(0f, 1f, 4f / 3f, 16f / 9f) && settings.jpegQuality in 70..100 && settings.caption.length <= 80 && settings.captionSize in 16..72 && settings.captionPosition in 0.1f..0.9f)
+            require(settings.brightness in -100f..100f && settings.contrast in 0.5f..1.5f && settings.saturation in 0f..2f && settings.rotation in listOf(0, 90, 180, 270) && settings.cropRatio in listOf(0f, 1f, 4f / 3f, 16f / 9f) && settings.jpegQuality in 70..100 && settings.caption.length <= 80 && settings.captionSize in 16..72 && settings.captionPosition in 0.1f..0.9f && settings.maxDimension in listOf(1200, 2400, 3600))
             val orientation = runCatching {
                 context.contentResolver.openInputStream(source)?.use {
                     ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
@@ -36,7 +36,7 @@ object PhotoEditor {
             val largest = maxOf(bounds.outWidth, bounds.outHeight)
             if (largest <= 0) throw IOException("Invalid image")
             var factor = 1
-            while (largest / factor > 2400) factor *= 2
+            while (largest / factor > settings.maxDimension) factor *= 2
             val opts = BitmapFactory.Options().apply { inSampleSize = factor; inPreferredConfig = Bitmap.Config.ARGB_8888 }
             val bitmap = context.contentResolver.openInputStream(source)?.use { BitmapFactory.decodeStream(it, null, opts) }
                 ?: throw IOException("Cannot decode image")
