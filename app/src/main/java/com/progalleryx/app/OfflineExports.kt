@@ -9,6 +9,9 @@ import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.io.File
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
  * First offline export tools. Media originals are read-only and never overwritten.
@@ -44,8 +47,10 @@ object OfflineExports {
         withContext(Dispatchers.IO) {
             require(images.isNotEmpty() && images.size <= 100) { "Select 1–100 images" }
             val pdf = PdfDocument()
+            val temp = File.createTempFile("pgx_pdf_", ".pdf", context.cacheDir)
             try {
                 images.forEachIndexed { index, uri ->
+                    currentCoroutineContext().ensureActive()
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
                         ?: throw IOException("Cannot read image ${index + 1}")
@@ -77,8 +82,15 @@ object OfflineExports {
                         pdf.finishPage(page)
                     } finally { bitmap.recycle() }
                 }
-                context.contentResolver.openOutputStream(destination, "w")?.use { pdf.writeTo(it) }
-                    ?: throw IOException("Cannot save PDF")
-            } finally { pdf.close() }
+                temp.outputStream().use { pdf.writeTo(it) }
+                if (temp.length() <= 0L) throw IOException("Empty PDF output")
+                currentCoroutineContext().ensureActive()
+                context.contentResolver.openOutputStream(destination, "w")?.use { output ->
+                    temp.inputStream().use { it.copyTo(output, 256 * 1024) }
+                } ?: throw IOException("Cannot save PDF")
+            } finally {
+                pdf.close()
+                temp.delete()
+            }
         }
 }
