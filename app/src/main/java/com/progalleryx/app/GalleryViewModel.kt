@@ -15,6 +15,7 @@ data class GalleryState(
     val albums: List<GalleryAlbum> = emptyList(),
     val albumId: Long? = null,
     val filter: MediaFilter = MediaFilter.ALL,
+    val search: String = "",
     val loading: Boolean = false,
     val end: Boolean = false,
     val error: String? = null
@@ -37,15 +38,19 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadAlbums() { viewModelScope.launch { runCatching { repository.albums() }.onSuccess { mutable.value = mutable.value.copy(albums = it) } } }
     fun setAlbum(albumId: Long?) { reload(album = albumId) }
+    fun setSearch(value: String) {
+        val normalized = value.trim().take(80)
+        if (mutable.value.search != normalized) reload(search = normalized)
+    }
 
     fun setFilter(filter: MediaFilter) {
         if (mutable.value.filter != filter) reload(filter)
     }
 
-    fun reload(filter: MediaFilter = mutable.value.filter, album: Long? = mutable.value.albumId) {
+    fun reload(filter: MediaFilter = mutable.value.filter, album: Long? = mutable.value.albumId, search: String = mutable.value.search) {
         request?.cancel()
         generation++
-        mutable.value = GalleryState(filter = filter, albumId = album, albums = mutable.value.albums)
+        mutable.value = GalleryState(filter = filter, albumId = album, search = search, albums = mutable.value.albums)
         loadMore()
     }
 
@@ -62,7 +67,7 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
                             GalleryMedia(android.content.ContentUris.parseId(uri), uri, uri.pathSegments.contains("video"), 0L)
                         }.getOrNull()
                     }
-                } else repository.page(current.scanOffset, filter = current.filter, albumId = current.albumId)
+                } else repository.page(current.scanOffset, filter = current.filter, albumId = current.albumId, search = current.search)
                 if (token != generation) return@launch
                 // Some Android providers ignore offset arguments. Do not create
                 // an infinite list of repeated items in that situation.
