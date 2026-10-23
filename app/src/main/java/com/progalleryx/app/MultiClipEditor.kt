@@ -141,6 +141,33 @@ object ClipSequenceTimelineRules {
         }
     }
 
+    /** Pure batch trimming presets. Durations and windows use milliseconds. */
+    enum class TrimPreset { FULL, FIRST_FIVE_SECONDS, LAST_FIVE_SECONDS }
+
+    fun batchRanges(durationsMs: Map<String, Long>, preset: TrimPreset): Map<String, Pair<Long, Long>> {
+        require(durationsMs.isNotEmpty() && durationsMs.size <= 12) { "Invalid clip count" }
+        return durationsMs.mapValues { (_, duration) ->
+            require(duration >= MIN_CLIP_MS && duration <= MAX_TOTAL_MS) { "Invalid clip duration" }
+            val selection = minOf(duration, 5000L)
+            when (preset) {
+                TrimPreset.FULL -> 0L to duration
+                TrimPreset.FIRST_FIVE_SECONDS -> 0L to selection
+                TrimPreset.LAST_FIVE_SECONDS -> (duration - selection) to duration
+            }
+        }
+    }
+
+    fun totalSelectedDurationMs(ranges: Collection<Pair<Long, Long>>): Long {
+        require(ranges.size in 2..12)
+        var duration = 0L
+        ranges.forEach { (start, end) ->
+            require(start >= 0L && end >= start + MIN_CLIP_MS) { "Invalid clip range" }
+            require(end - start <= MAX_TOTAL_MS - duration) { "Timeline duration exceeded" }
+            duration += end - start
+        }
+        return duration
+    }
+
     fun <T> segmentAt(timeline: List<TimelineSegment<T>>, positionMs: Long): TimelineSegment<T>? =
         timeline.firstOrNull { positionMs >= it.timelineStartMs && positionMs < it.timelineEndMs }
 
