@@ -273,19 +273,8 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             val photoMatrix = remember(brightness, contrast, saturation, temperature, tint) {
                 android.graphics.ColorMatrix().apply {
                     setSaturation(saturation)
-                    val offset = 128f * (1f - contrast) + brightness * 2.55f
-                    postConcat(android.graphics.ColorMatrix(floatArrayOf(
-                        contrast, 0f, 0f, 0f, offset,
-                        0f, contrast, 0f, 0f, offset,
-                        0f, 0f, contrast, 0f, offset,
-                        0f, 0f, 0f, 1f, 0f
-                    )))
-                    postConcat(android.graphics.ColorMatrix(floatArrayOf(
-                        1f, 0f, 0f, 0f, temperature * 0.6f + tint * 0.22f,
-                        0f, 1f, 0f, 0f, -tint * 0.45f,
-                        0f, 0f, 1f, 0f, -temperature * 0.6f + tint * 0.22f,
-                        0f, 0f, 0f, 1f, 0f
-                    )))
+                    postConcat(android.graphics.ColorMatrix(PhotoColorRules.contrastBrightness(contrast, brightness)))
+                    postConcat(android.graphics.ColorMatrix(PhotoColorRules.temperatureTint(temperature, tint)))
                 }
             }
             Card(modifier = Modifier.fillMaxWidth()) {
