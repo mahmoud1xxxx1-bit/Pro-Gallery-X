@@ -4,11 +4,13 @@ import android.content.Context
 import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
+import androidx.media3.transformer.VideoEncoderSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -24,10 +26,18 @@ data class VideoJoinPart(val source: Uri, val startMs: Long, val endMs: Long, va
 /** Concatenate 2–12 video clips on-device. Originals never overwritten. */
 object MultiClipEditor {
     /** Join individually trimmed segments; validate times against actual metadata. */
-    suspend fun exportParts(context: Context, parts: List<VideoJoinPart>, destination: Uri) {
+    suspend fun exportParts(
+        context: Context,
+        parts: List<VideoJoinPart>,
+        destination: Uri,
+        bitrate: Int = VideoQualityRules.AUTO,
+        targetHeight: Int = VideoQualityRules.HEIGHT_AUTO
+    ) {
         require(parts.size in 2..12)
         require(parts.map { it.source }.distinct().size == parts.size)
         require(parts.none { it.source == destination })
+        require(VideoQualityRules.valid(bitrate))
+        require(VideoQualityRules.validHeight(targetHeight))
         ClipSequenceTimelineRules.build(parts.map { Triple(it.source, it.startMs, it.endMs) })
         withContext(Dispatchers.IO) {
             for (part in parts) {
@@ -50,10 +60,27 @@ object MultiClipEditor {
                             .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder()
                                 .setStartPositionMs(part.startMs).setEndPositionMs(part.endMs).build())
                             .build()
-                        EditedMediaItem.Builder(item).setRemoveAudio(part.muteAudio).build()
+                        val builder = EditedMediaItem.Builder(item).setRemoveAudio(part.muteAudio)
+                        if (targetHeight > 0) {
+                            builder.setEffects(
+                                androidx.media3.transformer.Effects(
+                                    emptyList(),
+                                    listOf(androidx.media3.effect.Presentation.createForHeight(targetHeight))
+                                )
+                            )
+                        }
+                        builder.build()
                     }
                     val composition = Composition.Builder(EditedMediaItemSequence.Builder(items).build()).build()
-                    val transformer = Transformer.Builder(context).addListener(object : Transformer.Listener {
+                    val transformerBuilder = Transformer.Builder(context)
+                    if (bitrate != VideoQualityRules.AUTO) {
+                        val encoderFactory = DefaultEncoderFactory.Builder(context)
+                            .setRequestedVideoEncoderSettings(
+                                VideoEncoderSettings.Builder().setBitrate(bitrate).build()
+                            ).build()
+                        transformerBuilder.setEncoderFactory(encoderFactory)
+                    }
+                    val transformer = transformerBuilder.addListener(object : Transformer.Listener {
                         override fun onCompleted(composition: Composition, exportResult: ExportResult) {
                             if (cont.isActive) cont.resume(Unit)
                         }
@@ -167,6 +194,18 @@ object ClipSequenceTimelineRules {
             duration += end - start
         }
         return duration
+    }
+
+    /** Next playable segment, or null at the end of the composition. */
+    fun nextClipIndex(current: Int, clipCount: Int): Int? {
+        require(clipCount in 2..12 && current in 0 until clipCount)
+        return if (current + 1 < clipCount) current + 1 else null
+    }
+
+    /** Previous playable segment, or null at the beginning of the composition. */
+    fun previousClipIndex(current: Int, clipCount: Int): Int? {
+        require(clipCount in 2..12 && current in 0 until clipCount)
+        return if (current - 1 >= 0) current - 1 else null
     }
 
     /** Edit decisions are pure and share the same boundaries as export. */

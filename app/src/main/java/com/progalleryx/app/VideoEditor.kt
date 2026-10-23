@@ -11,6 +11,9 @@ import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
 import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.ExportException
+import androidx.media3.transformer.VideoEncoderSettings
+import androidx.media3.transformer.Effects
+import androidx.media3.effect.Presentation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -34,16 +37,30 @@ object VideoEditor {
             } finally { retriever.release() }
         }
         require(VideoExportRules.validSplit(splitMs, duration)) { "Both split segments must be at least 500 ms" }
-        trimToDocument(context, input, output,
+        trimToDocument(
+            context, input, output,
             if (secondHalf) splitMs else 0L,
-            if (secondHalf) duration else splitMs, muteAudio)
+            if (secondHalf) duration else splitMs,
+            muteAudio
+        )
     }
 
-    suspend fun trimToDocument(context: Context, input: Uri, output: Uri, startMs: Long, endMs: Long, muteAudio: Boolean = false, speed: Float = 1f, bitrate: Int = VideoQualityRules.AUTO) {
+    suspend fun trimToDocument(
+        context: Context,
+        input: Uri,
+        output: Uri,
+        startMs: Long,
+        endMs: Long,
+        muteAudio: Boolean = false,
+        speed: Float = 1f,
+        bitrate: Int = VideoQualityRules.AUTO,
+        targetHeight: Int = VideoQualityRules.HEIGHT_AUTO
+    ) {
         require(startMs >= 0 && endMs > startMs && endMs - startMs >= 500) { "Invalid trim window" }
         require(input != output) { "Source and output must differ" }
         require(VideoSpeedRules.valid(speed)) { "Unsupported video speed" }
         require(VideoQualityRules.valid(bitrate)) { "Unsupported output bitrate" }
+        require(VideoQualityRules.validHeight(targetHeight)) { "Unsupported target resolution" }
         withContext(Dispatchers.IO) {
             val metadata = MediaMetadataRetriever()
             try {
@@ -67,6 +84,14 @@ object VideoEditor {
                                 .build()
                         ).build()
                     val builder = EditedMediaItem.Builder(clip).setRemoveAudio(muteAudio)
+                    if (targetHeight > 0) {
+                        builder.setEffects(
+                            Effects(
+                                emptyList(),
+                                listOf(Presentation.createForHeight(targetHeight))
+                            )
+                        )
+                    }
                     if (speed != 1f) builder.setSpeed(object : SpeedProvider {
                         override fun getSpeed(timeUs: Long): Float = speed
                         override fun getNextSpeedChangeTimeUs(timeUs: Long): Long = C.TIME_UNSET
@@ -76,7 +101,7 @@ object VideoEditor {
                     if (bitrate != VideoQualityRules.AUTO) {
                         val encoderFactory = DefaultEncoderFactory.Builder(context)
                             .setRequestedVideoEncoderSettings(
-                                androidx.media3.transformer.VideoEncoderSettings.Builder().setBitrate(bitrate).build()
+                                VideoEncoderSettings.Builder().setBitrate(bitrate).build()
                             ).build()
                         transformerBuilder.setEncoderFactory(encoderFactory)
                     }
