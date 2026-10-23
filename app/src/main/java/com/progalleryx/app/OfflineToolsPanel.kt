@@ -54,6 +54,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var joinRanges by remember { mutableStateOf<Map<Uri, Pair<Float, Float>>>(emptyMap()) }
     var joinDurations by remember { mutableStateOf<Map<Uri, Float>>(emptyMap()) }
     var mutedJoinClips by remember { mutableStateOf<Set<Uri>>(emptySet()) }
+    var previousJoinRanges by remember { mutableStateOf<Map<Uri, Pair<Float, Float>>?>(null) }
     var timelineCursorMs by remember { mutableFloatStateOf(0f) }
     val joinOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { dest ->
         if (!busy && dest != null && clipsToJoin.size in 2..12) {
@@ -78,6 +79,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         joinRanges = emptyMap()
         joinDurations = emptyMap()
         mutedJoinClips = emptySet()
+        previousJoinRanges = null
         val captured = clipsToJoin.toList()
         scope.launch {
             val durations = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -802,6 +804,47 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         }
         Button(onClick = { joinInput.launch("video/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("دمج مقاطع فيديو (2–12)") }
         if (clipsToJoin.isNotEmpty()) {
+            val usableDurations = clipsToJoin.mapNotNull { uri ->
+                joinDurations[uri]?.let { duration ->
+                    if (duration.isFinite() && duration >= 0.5f) uri.toString() to (duration * 1000f).toLong() else null
+                }
+            }.toMap()
+            val batchReady = !busy && clipsToJoin.size in 2..12 &&
+                usableDurations.size == clipsToJoin.size
+            Text("أدوات تعديل جميع المقاطع", style = MaterialTheme.typography.titleMedium)
+            Text("تُطبَّق العمليات على مقاطع الدمج دون تغيير الملفات الأصلية.",
+                style = MaterialTheme.typography.bodySmall)
+            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(
+                    "المدة الكاملة" to ClipSequenceTimelineRules.TrimPreset.FULL,
+                    "أول 5 ثوانٍ" to ClipSequenceTimelineRules.TrimPreset.FIRST_FIVE_SECONDS,
+                    "آخر 5 ثوانٍ" to ClipSequenceTimelineRules.TrimPreset.LAST_FIVE_SECONDS
+                ).forEach { (title, preset) ->
+                    OutlinedButton(onClick = {
+                        val result = runCatching { ClipSequenceTimelineRules.batchRanges(usableDurations, preset) }.getOrNull()
+                        if (result != null) {
+                            previousJoinRanges = joinRanges
+                            joinRanges = clipsToJoin.associateWith { uri ->
+                                val range = requireNotNull(result[uri.toString()])
+                                range.first / 1000f to range.second / 1000f
+                            }
+                            timelineCursorMs = 0f
+                        }
+                    }, enabled = batchReady) { Text(title) }
+                }
+            }
+            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedButton(onClick = {
+                    joinRanges = previousJoinRanges ?: joinRanges
+                    previousJoinRanges = null
+                }, enabled = !busy && previousJoinRanges != null) { Text("التراجع عن القص الجماعي") }
+                OutlinedButton(onClick = { mutedJoinClips = clipsToJoin.toSet() },
+                    enabled = !busy && clipsToJoin.isNotEmpty()) { Text("كتم الكل") }
+                OutlinedButton(onClick = { mutedJoinClips = emptySet() },
+                    enabled = !busy && mutedJoinClips.isNotEmpty()) { Text("إلغاء كتم الكل") }
+            }
             val timelineSegments = remember(clipsToJoin, joinRanges) {
                 if (clipsToJoin.size in 2..12 && clipsToJoin.all { joinRanges[it] != null }) {
                     runCatching {
