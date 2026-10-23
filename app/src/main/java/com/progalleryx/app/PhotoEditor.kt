@@ -21,10 +21,44 @@ data class PhotoTextLayer(val text: String, val x: Float = 0.5f, val y: Float = 
     fun valid() = text.length <= 80 && x in 0.05f..0.95f && y in 0.05f..0.95f && size in 16..72
 }
 
-data class PhotoAdjustments(val brightness: Float = 0f, val contrast: Float = 1f, val saturation: Float = 1f, val rotation: Int = 0, val flipHorizontal: Boolean = false, val flipVertical: Boolean = false, val cropRatio: Float = 0f, val jpegQuality: Int = 92, val caption: String = "", val captionDark: Boolean = false, val captionSize: Int = 32, val captionPosition: Float = 0.9f, val maxDimension: Int = 2400, val cropX: Float = 0.5f, val cropY: Float = 0.5f, val temperature: Float = 0f, val tint: Float = 0f, val textLayers: List<PhotoTextLayer> = emptyList(), val brushStrokes: List<BrushStroke> = emptyList())
+data class PhotoAdjustments(
+    val brightness: Float = 0f,
+    val contrast: Float = 1f,
+    val saturation: Float = 1f,
+    val rotation: Int = 0,
+    val flipHorizontal: Boolean = false,
+    val flipVertical: Boolean = false,
+    val cropRatio: Float = 0f,
+    val jpegQuality: Int = 92,
+    val caption: String = "",
+    val captionDark: Boolean = false,
+    val captionSize: Int = 32,
+    val captionPosition: Float = 0.9f,
+    val maxDimension: Int = 2400,
+    val cropX: Float = 0.5f,
+    val cropY: Float = 0.5f,
+    val temperature: Float = 0f,
+    val tint: Float = 0f,
+    val textLayers: List<PhotoTextLayer> = emptyList(),
+    val brushStrokes: List<BrushStroke> = emptyList()
+)
 
 /** Offline JPEG export. Source URI is read-only; destination must be a newly selected document. */
 object PhotoEditor {
+    suspend fun exportBatch(
+        context: Context,
+        targets: List<Pair<Uri, Uri>>,
+        settings: PhotoAdjustments,
+        onProgress: ((current: Int, total: Int) -> Unit)? = null
+    ) = withContext(Dispatchers.IO) {
+        require(PhotoBatchRules.validBatchSize(targets.size)) { "Batch size must be between 1 and 25" }
+        targets.forEachIndexed { index, (source, dest) ->
+            currentCoroutineContext().ensureActive()
+            export(context, source, dest, settings)
+            onProgress?.invoke(index + 1, targets.size)
+        }
+    }
+
     suspend fun export(context: Context, source: Uri, destination: Uri, settings: PhotoAdjustments) =
         withContext(Dispatchers.IO) {
             require(source != destination) { "Original and output must be different" }
