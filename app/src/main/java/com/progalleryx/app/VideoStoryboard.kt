@@ -24,7 +24,15 @@ object VideoStoryboard {
             for (i in 0 until count) {
                 currentCoroutineContext().ensureActive()
                 val timestamp = (duration * i / (count - 1)).coerceAtMost(duration - 1)
-                val frame = retriever.getScaledFrameAtTime(timestamp * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 160, 90)
+                val frame = if (android.os.Build.VERSION.SDK_INT >= 27) {
+                    retriever.getScaledFrameAtTime(timestamp * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 160, 90)
+                } else {
+                    retriever.getFrameAtTime(timestamp * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)?.let { full ->
+                        val scaled = Bitmap.createScaledBitmap(full, 160, 90, true)
+                        if (scaled !== full) full.recycle()
+                        scaled
+                    }
+                }
                 if (frame != null) result.add(frame)
             }
             result.toList()
