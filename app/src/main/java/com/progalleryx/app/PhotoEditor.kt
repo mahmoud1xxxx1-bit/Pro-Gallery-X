@@ -13,6 +13,9 @@ import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.io.File
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 data class PhotoAdjustments(val brightness: Float = 0f, val contrast: Float = 1f, val saturation: Float = 1f, val rotation: Int = 0, val flipHorizontal: Boolean = false, val flipVertical: Boolean = false, val cropRatio: Float = 0f, val jpegQuality: Int = 92)
 
@@ -20,6 +23,7 @@ data class PhotoAdjustments(val brightness: Float = 0f, val contrast: Float = 1f
 object PhotoEditor {
     suspend fun export(context: Context, source: Uri, destination: Uri, settings: PhotoAdjustments) =
         withContext(Dispatchers.IO) {
+            require(source != destination) { "Original and output must be different" }
             require(settings.brightness in -100f..100f && settings.contrast in 0.5f..1.5f && settings.saturation in 0f..2f && settings.rotation in listOf(0, 90, 180, 270) && settings.cropRatio in listOf(0f, 1f, 4f / 3f, 16f / 9f) && settings.jpegQuality in 70..100)
             val orientation = runCatching {
                 context.contentResolver.openInputStream(source)?.use {
@@ -74,9 +78,17 @@ object PhotoEditor {
                     Canvas(output).drawBitmap(transformed, -(transformed.width - cropWidth) / 2f, -(transformed.height - cropHeight) / 2f, Paint(Paint.FILTER_BITMAP_FLAG).apply {
                         colorFilter = ColorMatrixColorFilter(colors)
                     })
-                    context.contentResolver.openOutputStream(destination, "w")?.use { stream ->
-                        if (!output.compress(Bitmap.CompressFormat.JPEG, settings.jpegQuality, stream)) throw IOException("Export failed")
-                    } ?: throw IOException("Output permission denied")
+                    val temp = File.createTempFile("pgx_photo_", ".jpg", context.cacheDir)
+                    try {
+                        temp.outputStream().use { stream ->
+                            if (!output.compress(Bitmap.CompressFormat.JPEG, settings.jpegQuality, stream)) throw IOException("JPEG encoding failed")
+                        }
+                        if (temp.length() <= 0L) throw IOException("Empty JPEG export")
+                        currentCoroutineContext().ensureActive()
+                        context.contentResolver.openOutputStream(destination, "w")?.use { stream ->
+                            temp.inputStream().use { it.copyTo(stream, 256 * 1024) }
+                        } ?: throw IOException("Output permission denied")
+                    } finally { temp.delete() }
                 } finally { output.recycle(); if (transformed !== upright) transformed.recycle() }
                 } finally { if (upright !== bitmap) upright.recycle() }
             } finally { bitmap.recycle() }
