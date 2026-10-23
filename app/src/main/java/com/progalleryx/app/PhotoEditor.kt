@@ -61,9 +61,9 @@ object PhotoEditor {
                     postRotate(settings.rotation.toFloat())
                 }
                 val transformed = if (settings.rotation != 0 || settings.flipHorizontal || settings.flipVertical) Bitmap.createBitmap(upright, 0, 0, upright.width, upright.height, transform, true) else upright
-                val ratio = settings.cropRatio
-                val cropWidth = if (ratio == 0f) transformed.width else minOf(transformed.width, (transformed.height * ratio).toInt().coerceAtLeast(1))
-                val cropHeight = if (ratio == 0f) transformed.height else minOf(transformed.height, (transformed.width / ratio).toInt().coerceAtLeast(1))
+                val crop = PhotoCropRules.area(transformed.width, transformed.height, settings.cropRatio, settings.cropX, settings.cropY)
+                val cropWidth = crop.width
+                val cropHeight = crop.height
                 val output = Bitmap.createBitmap(cropWidth, cropHeight, Bitmap.Config.ARGB_8888)
                 try {
                     val colors = ColorMatrix().apply { setSaturation(settings.saturation) }
@@ -75,7 +75,7 @@ object PhotoEditor {
                         0f, 0f, contrast, 0f, offset,
                         0f, 0f, 0f, 1f, 0f
                     )))
-                    Canvas(output).drawBitmap(transformed, -(transformed.width - cropWidth) * settings.cropX, -(transformed.height - cropHeight) * settings.cropY, Paint(Paint.FILTER_BITMAP_FLAG).apply {
+                    Canvas(output).drawBitmap(transformed, -crop.left.toFloat(), -crop.top.toFloat(), Paint(Paint.FILTER_BITMAP_FLAG).apply {
                         colorFilter = ColorMatrixColorFilter(colors)
                     })
                     if (settings.caption.isNotBlank()) {
