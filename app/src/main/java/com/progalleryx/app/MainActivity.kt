@@ -219,7 +219,8 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                                         start()
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth().height(300.dp)
+                                modifier = Modifier.fillMaxWidth().height(300.dp),
+                                onRelease = { view -> view.stopPlayback() }
                             )
                         }
                     } else {
