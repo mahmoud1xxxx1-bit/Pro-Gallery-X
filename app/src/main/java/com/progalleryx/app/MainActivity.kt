@@ -58,12 +58,18 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
             arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
         else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
-    var permitted by remember { mutableStateOf(needed.any { ctx.checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED }) }
-    var partialAccess by remember { mutableStateOf(false) }
+    fun permissionGranted(name: String): Boolean =
+        ctx.checkSelfPermission(name) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    var permitted by remember { mutableStateOf(needed.any(::permissionGranted)) }
+    var partialAccess by remember {
+        mutableStateOf(Build.VERSION.SDK_INT >= 34 &&
+            permissionGranted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) &&
+            !permissionGranted(Manifest.permission.READ_MEDIA_IMAGES))
+    }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        permitted = needed.any { p -> ctx.checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+        permitted = needed.any(::permissionGranted)
         partialAccess = Build.VERSION.SDK_INT >= 34 && ctx.checkSelfPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == android.content.pm.PackageManager.PERMISSION_GRANTED && ctx.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != android.content.pm.PackageManager.PERMISSION_GRANTED
-        if (permitted) vm.reload()
+        if (permitted) { vm.reload(); vm.loadAlbums() }
     }
     val favorites = remember { FavoritesStore(ctx) }
     var selected by remember { mutableStateOf<GalleryMedia?>(null) }
@@ -77,6 +83,23 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
     var pendingTrash by remember { mutableStateOf<GalleryMedia?>(null) }
     val trashLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) { selected = null; pendingTrash = null; vm.reload() }
+    }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                val current = needed.any(::permissionGranted)
+                val limited = Build.VERSION.SDK_INT >= 34 &&
+                    permissionGranted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) &&
+                    !permissionGranted(Manifest.permission.READ_MEDIA_IMAGES)
+                val changed = current != permitted || limited != partialAccess
+                permitted = current
+                partialAccess = limited
+                if (changed && current) { vm.reload(); vm.loadAlbums() }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(permitted) { if (permitted) { vm.reload(); vm.loadAlbums() } }
     MaterialTheme(colorScheme = lightColorScheme(primary = Blue, background = Back, surface = Color.White)) {
@@ -133,7 +156,7 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                         if (state.items.isNotEmpty() && last >= state.items.lastIndex - 18 && !state.loading && !state.end) vm.loadMore()
                     }
                 }
-                LazyVerticalGrid(columns = GridCells.Fixed(3), state = gridState, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 112.dp), state = gridState, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     itemsIndexed(state.items, key = { _, item -> item.id }) { _, item ->
                         Box(Modifier.aspectRatio(1f).clickable { selected = item }, contentAlignment = Alignment.BottomEnd) {
                             AsyncImage(
