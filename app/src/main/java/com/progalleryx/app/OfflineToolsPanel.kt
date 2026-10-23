@@ -154,17 +154,18 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var caption by remember { mutableStateOf("") }
     var captionDark by remember { mutableStateOf(false) }
     var captionSize by remember { mutableIntStateOf(32) }
+    var captionPosition by remember { mutableFloatStateOf(0.9f) }
     var undoStack by remember { mutableStateOf<List<PhotoAdjustments>>(emptyList()) }
     var redoStack by remember { mutableStateOf<List<PhotoAdjustments>>(emptyList()) }
     var adjustingSlider by remember { mutableStateOf(false) }
     fun snapshot() {
-        undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize)).takeLast(30)
+        undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition)).takeLast(30)
         redoStack = emptyList()
     }
     val editedOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { target ->
         val source = editSource
         if (!busy && target != null && source != null) {
-            val adjustments = PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize)
+            val adjustments = PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition)
             busy = true
             scope.launch {
                 try { PhotoEditor.export(context, source, target, adjustments); message = "تم تصدير الصورة بنجاح" }
@@ -175,7 +176,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         }
     }
     val editInput = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) { editSource = uri; showAdjustments = true; brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; undoStack = emptyList(); redoStack = emptyList(); caption = ""; captionDark = false; captionSize = 32 }
+        if (uri != null) { editSource = uri; showAdjustments = true; brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; undoStack = emptyList(); redoStack = emptyList(); caption = ""; captionDark = false; captionSize = 32; captionPosition = 0.9f }
     }
     val pdfOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { target ->
         if (!busy && target != null && images.isNotEmpty()) {
@@ -275,7 +276,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 }
             }
             Card(modifier = Modifier.fillMaxWidth()) {
-                Box(modifier = Modifier.fillMaxWidth().height(260.dp), contentAlignment = Alignment.BottomCenter) {
+                Box(modifier = Modifier.fillMaxWidth().height(260.dp), contentAlignment = Alignment.Center) {
                     AsyncImage(
                         model = editSource,
                         contentDescription = "معاينة التعديلات",
@@ -288,7 +289,8 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                         color = if (captionDark) Color.Black else Color.White,
                         style = MaterialTheme.typography.titleMedium,
                         fontSize = (captionSize * 0.5f).sp,
-                        modifier = Modifier.padding(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(8.dp).offset(y = ((captionPosition - 0.5f) * 210f).dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         maxLines = 2
                     )
                 }
@@ -302,7 +304,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 TextButton(onClick = {
                     val previous = undoStack.last()
-                    redoStack = (redoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize)).takeLast(30)
+                    redoStack = (redoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition)).takeLast(30)
                     undoStack = undoStack.dropLast(1)
                     brightness = previous.brightness
                     contrast = previous.contrast
@@ -315,15 +317,16 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     caption = previous.caption
                     captionDark = previous.captionDark
                     captionSize = previous.captionSize
+                    captionPosition = previous.captionPosition
                 }, enabled = !busy && undoStack.isNotEmpty()) { Text("تراجع") }
                 TextButton(onClick = {
                     val next = redoStack.last()
                     redoStack = redoStack.dropLast(1)
-                    undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize)).takeLast(30)
+                    undoStack = (undoStack + PhotoAdjustments(brightness, contrast, saturation, rotation, flipHorizontal, flipVertical, cropRatio, jpegQuality, caption, captionDark, captionSize, captionPosition)).takeLast(30)
                     brightness = next.brightness; contrast = next.contrast; saturation = next.saturation
                     rotation = next.rotation; flipHorizontal = next.flipHorizontal; flipVertical = next.flipVertical
                     cropRatio = next.cropRatio; jpegQuality = next.jpegQuality
-                    caption = next.caption; captionDark = next.captionDark; captionSize = next.captionSize
+                    caption = next.caption; captionDark = next.captionDark; captionSize = next.captionSize; captionPosition = next.captionPosition
                 }, enabled = !busy && redoStack.isNotEmpty()) { Text("إعادة") }
                 TextButton(onClick = { snapshot(); brightness = 18f; contrast = 1.12f; saturation = 1.18f }, enabled = !busy) { Text("ألوان نابضة") }
                 TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1.08f; saturation = 0f }, enabled = !busy) { Text("أبيض وأسود") }
@@ -343,6 +346,12 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 Checkbox(checked = captionDark, onCheckedChange = { snapshot(); captionDark = it }, enabled = !busy)
                 Text("نص داكن")
             }
+            Text("موضع النص: ${(captionPosition * 100).toInt()}% من الأعلى")
+            Slider(value = captionPosition, onValueChange = {
+                if (!adjustingSlider) { snapshot(); adjustingSlider = true }
+                captionPosition = it
+            }, onValueChangeFinished = { adjustingSlider = false },
+                valueRange = 0.1f..0.9f, enabled = !busy)
             Text("حجم النص: $captionSize")
             Slider(value = captionSize.toFloat(), onValueChange = {
                 if (!adjustingSlider) { snapshot(); adjustingSlider = true }
@@ -356,7 +365,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             Slider(value = contrast, onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; contrast = it }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 0.5f..1.5f)
             Text("التشبع: ${(saturation * 100).toInt()}%")
             Slider(value = saturation, onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; saturation = it }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 0f..2f)
-            TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; caption = ""; captionDark = false; captionSize = 32 }, enabled = !busy) { Text("إعادة ضبط التعديلات") }
+            TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1f; saturation = 1f; rotation = 0; flipHorizontal = false; flipVertical = false; cropRatio = 0f; jpegQuality = 92; caption = ""; captionDark = false; captionSize = 32; captionPosition = 0.9f }, enabled = !busy) { Text("إعادة ضبط التعديلات") }
             Button(onClick = { editedOutput.launch("ProGalleryX-edited.jpg") }, enabled = !busy) { Text("تصدير صورة جديدة") }
         }
         Button(onClick = { rotateInput.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
