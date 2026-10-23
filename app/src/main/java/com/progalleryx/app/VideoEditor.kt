@@ -4,9 +4,8 @@ import android.content.Context
 import android.net.Uri
 import android.media.MediaMetadataRetriever
 import androidx.media3.common.MediaItem
-import androidx.media3.common.Effects
-import androidx.media3.common.audio.SonicAudioProcessor
-import androidx.media3.effect.SpeedChangeEffect
+import androidx.media3.common.C
+import androidx.media3.common.audio.SpeedProvider
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
@@ -65,9 +64,12 @@ object VideoEditor {
                                 .setEndPositionMs(endMs)
                                 .build()
                         ).build()
-                    val effects = if (speed == 1f) Effects(emptyList(), emptyList())
-                    else Effects(listOf(SonicAudioProcessor().apply { setSpeed(speed) }), listOf(SpeedChangeEffect(speed)))
-                    val editor = EditedMediaItem.Builder(clip).setRemoveAudio(muteAudio).setEffects(effects).build()
+                    val builder = EditedMediaItem.Builder(clip).setRemoveAudio(muteAudio)
+                    if (speed != 1f) builder.setSpeed(object : SpeedProvider {
+                        override fun getSpeed(timeUs: Long): Float = speed
+                        override fun getNextSpeedChangeTimeUs(timeUs: Long): Long = C.TIME_UNSET
+                    })
+                    val editor = builder.build()
                     val transformer = Transformer.Builder(context)
                         .addListener(object : Transformer.Listener {
                             override fun onCompleted(composition: androidx.media3.transformer.Composition, exportResult: ExportResult) {
