@@ -164,7 +164,12 @@ object PhotoEditor {
                         }
                         if (temp.length() <= 0L) throw IOException("Empty JPEG export")
                         currentCoroutineContext().ensureActive()
-                        context.contentResolver.openOutputStream(destination, "w")?.use { stream ->
+                        val outputStream = if (destination.scheme == "file" && destination.path != null) {
+                            java.io.FileOutputStream(java.io.File(destination.path!!))
+                        } else {
+                            context.contentResolver.openOutputStream(destination, "w")
+                        }
+                        outputStream?.use { stream ->
                             temp.inputStream().use { it.copyTo(stream, 256 * 1024) }
                         } ?: throw IOException("Output permission denied")
                     } finally { temp.delete() }

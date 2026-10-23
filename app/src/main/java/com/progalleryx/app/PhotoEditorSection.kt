@@ -223,13 +223,29 @@ fun PhotoEditorSection(
                                         for (i in batchSources.indices) {
                                             batchProgress = (i + 1) to batchSources.size
                                             val src = batchSources[i]
-                                            // Write to cache/temp then offer summary
-                                            val tempOut = java.io.File(context.cacheDir, PhotoBatchRules.generateBatchFileName(i, "batch"))
-                                            val destUri = Uri.fromFile(tempOut)
+                                            val fileName = PhotoBatchRules.generateBatchFileName(i, "batch")
+                                            val values = android.content.ContentValues().apply {
+                                                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                                                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                                    put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/ProGalleryX")
+                                                    put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+                                                }
+                                            }
+                                            val destUri = runCatching {
+                                                context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                                            }.getOrNull() ?: Uri.fromFile(java.io.File(context.cacheDir, fileName))
+
                                             PhotoEditor.export(context, src, destUri, adj)
+
+                                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && destUri.scheme == "content") {
+                                                values.clear()
+                                                values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
+                                                context.contentResolver.update(destUri, values, null, null)
+                                            }
                                             exportedCount++
                                         }
-                                        onMessageChange("اكتمل تصدير الدفعة: تم بنجاح $exportedCount صورة")
+                                        onMessageChange("اكتمل تصدير الدفعة: تم بنجاح $exportedCount صورة إلى المعرض (Pictures/ProGalleryX)")
                                     } catch (cancelled: kotlinx.coroutines.CancellationException) {
                                         onMessageChange("أُلغيت معالجة الدفعة")
                                         throw cancelled
