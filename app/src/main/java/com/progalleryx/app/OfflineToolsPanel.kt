@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 fun OfflineToolsPanel(onClose: () -> Unit) {
     val context = LocalContext.current
     var selectedSection by remember { mutableIntStateOf(0) }
+    var duplicateScan by remember { mutableStateOf<DuplicateScan?>(null) }
     val scope = rememberCoroutineScope()
     var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var pdfLayout by remember { mutableStateOf(PdfLayout.AUTO) }
@@ -257,12 +258,12 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         Text("استوديو Pro Gallery X", style = MaterialTheme.typography.headlineSmall)
         Text("تحرير محلي • الملفات الأصلية محفوظة", style = MaterialTheme.typography.bodySmall)
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            listOf("الصور", "الفيديو", "PDF").forEachIndexed { index, title ->
+            listOf("الصور", "الفيديو", "PDF", "المكررات").forEachIndexed { index, title ->
                 SegmentedButton(
                     selected = selectedSection == index,
                     onClick = { if (!busy) selectedSection = index },
                     enabled = !busy,
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = 3)
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = 4)
                 ) { Text(title) }
             }
         }
@@ -569,6 +570,43 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 Text("تصدير الفيديو المدمج")
             }
         }
+        }
+        if (selectedSection == 3) {
+            Text("كشف الصور المتطابقة", style = MaterialTheme.typography.titleLarge)
+            Text("فحص محلي للصور المتطابقة تمامًا باستخدام SHA-256. لا تُحذف أي ملفات تلقائيًا.")
+            Text("الفحص محدود بأحدث 3000 صورة مرئية للتطبيق؛ الصور المتشابهة بصريًا ليست بالضرورة مكررة.")
+            Button(onClick = {
+                busy = true
+                duplicateScan = null
+                scope.launch {
+                    try {
+                        duplicateScan = DuplicatePhotoScanner.scan(context)
+                        message = "اكتمل فحص الصور"
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (error: Exception) { message = "تعذر فحص الصور: ${error.localizedMessage}" }
+                    finally { busy = false }
+                }
+            }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("فحص المكررات") }
+            duplicateScan?.let { result ->
+                Text("الصور المفحوصة: ${result.examined} • مجموعات المكررات: ${result.groups.size}")
+                Text("المساحة القابلة للتوفير نظريًا: ${result.reclaimableBytes / (1024 * 1024)} MB")
+                if (result.truncated) Text("النتائج جزئية: تم بلوغ حد 3000 صورة.")
+                if (result.skipped > 0) Text("تعذر قراءة ${result.skipped} صورة؛ قد تكون النتائج غير مكتملة.")
+                result.groups.forEachIndexed { index, group ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("مجموعة ${index + 1} — ${group.photos.size} نسخ", style = MaterialTheme.typography.titleMedium)
+                            group.photos.forEach { photo ->
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    AsyncImage(model = photo.uri, contentDescription = "صورة مكررة", modifier = Modifier.size(48.dp))
+                                    Text(photo.name.ifBlank { "صورة بدون اسم" }, modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+                Text("راجع النسخ من المعرض أو تطبيق الملفات قبل الحذف. هذا الفحص للعرض فقط حفاظًا على ملفاتك.")
+            }
         }
         if (busy) CircularProgressIndicator()
         OutlinedButton(onClick = onClose, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("العودة إلى المعرض") }
