@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import android.media.MediaMetadataRetriever
 import androidx.media3.common.MediaItem
+import androidx.media3.common.C
+import androidx.media3.common.audio.SpeedProvider
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
@@ -36,9 +38,10 @@ object VideoEditor {
             if (secondHalf) duration else splitMs, muteAudio)
     }
 
-    suspend fun trimToDocument(context: Context, input: Uri, output: Uri, startMs: Long, endMs: Long, muteAudio: Boolean = false) {
+    suspend fun trimToDocument(context: Context, input: Uri, output: Uri, startMs: Long, endMs: Long, muteAudio: Boolean = false, speed: Float = 1f) {
         require(startMs >= 0 && endMs > startMs && endMs - startMs >= 500) { "Invalid trim window" }
         require(input != output) { "Source and output must differ" }
+        require(VideoSpeedRules.valid(speed)) { "Unsupported video speed" }
         withContext(Dispatchers.IO) {
             val metadata = MediaMetadataRetriever()
             try {
@@ -61,7 +64,12 @@ object VideoEditor {
                                 .setEndPositionMs(endMs)
                                 .build()
                         ).build()
-                    val editor = EditedMediaItem.Builder(clip).setRemoveAudio(muteAudio).build()
+                    val builder = EditedMediaItem.Builder(clip).setRemoveAudio(muteAudio)
+                    if (speed != 1f) builder.setSpeed(object : SpeedProvider {
+                        override fun getSpeed(timeUs: Long): Float = speed
+                        override fun getNextSpeedChangeTimeUs(timeUs: Long): Long = C.TIME_UNSET
+                    })
+                    val editor = builder.build()
                     val transformer = Transformer.Builder(context)
                         .addListener(object : Transformer.Listener {
                             override fun onCompleted(composition: androidx.media3.transformer.Composition, exportResult: ExportResult) {
