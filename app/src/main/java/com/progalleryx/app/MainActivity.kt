@@ -81,6 +81,11 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
     var showDetails by remember { mutableStateOf(false) }
     var showTools by remember { mutableStateOf(false) }
     var pickedMedia by remember { mutableStateOf<List<GalleryMedia>>(emptyList()) }
+    var searchInput by remember { mutableStateOf("") }
+    LaunchedEffect(searchInput) {
+        kotlinx.coroutines.delay(350)
+        vm.setSearch(searchInput)
+    }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { picked ->
         pickedMedia = picked.mapIndexed { i, uri -> GalleryMedia(-1L - i, uri, false, 0L) }
     }
@@ -127,6 +132,19 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                 }
             } else {
                 Text("الصور والفيديوهات", Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = Navy)
+                OutlinedTextField(
+                    value = searchInput,
+                    onValueChange = { searchInput = it.take(80) },
+                    label = { Text("البحث باسم الصورة أو الفيديو") },
+                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (searchInput.isNotEmpty()) IconButton(onClick = { searchInput = "" }) {
+                            Icon(Icons.Outlined.Close, contentDescription = "مسح البحث")
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                )
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = state.filter == MediaFilter.ALL, onClick = { vm.setFilter(MediaFilter.ALL) }, label = { Text("الكل") })
                     FilterChip(selected = state.filter == MediaFilter.PHOTOS, onClick = { vm.setFilter(MediaFilter.PHOTOS) }, label = { Text("الصور") })
@@ -182,7 +200,7 @@ fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
                     if (state.end && state.items.isEmpty() && pickedMedia.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
                         Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Icon(Icons.Outlined.PhotoLibrary, contentDescription = null, tint = Blue, modifier = Modifier.size(56.dp))
-                            Text(if (state.filter == MediaFilter.FAVORITES) "لم تضف صورًا للمفضلة بعد" else "لم نجد صورًا في هذا القسم", style = MaterialTheme.typography.titleMedium)
+                            Text(if (state.search.isNotBlank()) "لا توجد نتائج مطابقة للبحث" else if (state.filter == MediaFilter.FAVORITES) "لم تضف صورًا للمفضلة بعد" else "لم نجد صورًا في هذا القسم", style = MaterialTheme.typography.titleMedium)
                             Text("قد لا يحتوي الجهاز على صور، أو قد يكون إذن الوصول محدودًا.", color = Color.Gray)
                             OutlinedButton(onClick = { launcher.launch(needed) }) { Text("مراجعة إذن الوصول") }
                             TextButton(onClick = { photoPicker.launch("image/*") }) { Text("اختيار صور من الهاتف") }
