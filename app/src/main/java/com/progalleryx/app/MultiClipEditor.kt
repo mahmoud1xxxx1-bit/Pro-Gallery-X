@@ -28,6 +28,7 @@ object MultiClipEditor {
         require(parts.size in 2..12)
         require(parts.map { it.source }.distinct().size == parts.size)
         require(parts.none { it.source == destination })
+        ClipSequenceTimelineRules.build(parts.map { Triple(it.source, it.startMs, it.endMs) })
         withContext(Dispatchers.IO) {
             for (part in parts) {
                 val retriever = android.media.MediaMetadataRetriever()
@@ -167,6 +168,24 @@ object ClipSequenceTimelineRules {
         }
         return duration
     }
+
+    /** Edit decisions are pure and share the same boundaries as export. */
+    fun <T> moveClip(clips: List<T>, fromIndex: Int, toIndex: Int): List<T> {
+        require(clips.size in 2..12 && fromIndex in clips.indices && toIndex in clips.indices)
+        if (fromIndex == toIndex) return clips.toList()
+        return clips.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
+    }
+
+    fun <T> removeClip(clips: List<T>, index: Int): List<T> {
+        require(index in clips.indices)
+        return clips.filterIndexed { i, _ -> i != index }
+    }
+
+    fun <T> selectedDurationMs(clips: List<Triple<T, Long, Long>>): Long =
+        totalDurationMs(build(clips))
+
+    fun recommendedCursorAfterRemoval(previousPositionMs: Long, remainingDurationMs: Long): Long =
+        if (remainingDurationMs <= 0L) 0L else previousPositionMs.coerceIn(0L, remainingDurationMs - 1L)
 
     fun <T> segmentAt(timeline: List<TimelineSegment<T>>, positionMs: Long): TimelineSegment<T>? =
         timeline.firstOrNull { positionMs >= it.timelineStartMs && positionMs < it.timelineEndMs }
