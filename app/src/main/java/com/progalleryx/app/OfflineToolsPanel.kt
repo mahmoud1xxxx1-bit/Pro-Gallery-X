@@ -57,6 +57,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var joinDurations by remember { mutableStateOf<Map<Uri, Float>>(emptyMap()) }
     var mutedJoinClips by remember { mutableStateOf<Set<Uri>>(emptySet()) }
     var previousJoinRanges by remember { mutableStateOf<Map<Uri, Pair<Float, Float>>?>(null) }
+    var lastRemovedClip by remember { mutableStateOf<Pair<Uri, Int>?>(null) }
     var timelineCursorMs by remember { mutableFloatStateOf(0f) }
     var showLiveClipPreview by remember { mutableStateOf(false) }
     var timelinePreviewFrame by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
@@ -85,6 +86,8 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
         joinDurations = emptyMap()
         mutedJoinClips = emptySet()
         previousJoinRanges = null
+        lastRemovedClip = null
+        timelineCursorMs = 0f
         val captured = clipsToJoin.toList()
         scope.launch {
             val durations = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -967,21 +970,30 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 Text("الخط الزمني غير جاهز: تأكد من صلاحية جميع المقاطع ونقاط القص.")
             }
             Text("ترتيب المقاطع", style = MaterialTheme.typography.titleMedium)
+            if (lastRemovedClip != null && !busy) {
+                OutlinedButton(onClick = {
+                    val removed = lastRemovedClip
+                    if (removed != null && removed.first !in clipsToJoin && clipsToJoin.size < 12) {
+                        val updated = clipsToJoin.toMutableList()
+                        updated.add(removed.second.coerceIn(0, updated.size), removed.first)
+                        clipsToJoin = updated
+                        lastRemovedClip = null
+                    }
+                }) { Text("التراجع عن حذف المقطع") }
+            }
             clipsToJoin.forEachIndexed { index, uri ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("المقطع ${index + 1}", modifier = Modifier.weight(1f))
-                    TextButton(onClick = { clipsToJoin = clipsToJoin.filterIndexed { i, _ -> i != index } }, enabled = !busy) { Text("حذف") }
                     TextButton(onClick = {
-                        val clips = clipsToJoin.toMutableList()
-                        val item = clips.removeAt(index)
-                        clips.add(index - 1, item)
-                        clipsToJoin = clips
+                        lastRemovedClip = uri to index
+                        clipsToJoin = ClipSequenceTimelineRules.removeClip(clipsToJoin, index)
+                        timelineCursorMs = 0f
+                    }, enabled = !busy) { Text("حذف") }
+                    TextButton(onClick = {
+                        clipsToJoin = ClipSequenceTimelineRules.moveClip(clipsToJoin, index, index - 1)
                     }, enabled = !busy && index > 0) { Text("↑") }
                     TextButton(onClick = {
-                        val clips = clipsToJoin.toMutableList()
-                        val item = clips.removeAt(index)
-                        clips.add(index + 1, item)
-                        clipsToJoin = clips
+                        clipsToJoin = ClipSequenceTimelineRules.moveClip(clipsToJoin, index, index + 1)
                     }, enabled = !busy && index < clipsToJoin.lastIndex) { Text("↓") }
                 }
             }
