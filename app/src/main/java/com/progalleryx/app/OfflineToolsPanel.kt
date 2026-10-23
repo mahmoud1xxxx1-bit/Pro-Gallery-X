@@ -53,6 +53,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var clipsToJoin by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var joinRanges by remember { mutableStateOf<Map<Uri, Pair<Float, Float>>>(emptyMap()) }
     var joinDurations by remember { mutableStateOf<Map<Uri, Float>>(emptyMap()) }
+    var timelineCursorMs by remember { mutableFloatStateOf(0f) }
     val joinOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { dest ->
         if (!busy && dest != null && clipsToJoin.size in 2..12) {
             val orderedClips = clipsToJoin.mapNotNull { uri -> joinRanges[uri]?.let { VideoJoinPart(uri, (it.first * 1000f).toLong(), (it.second * 1000f).toLong()) } }
@@ -812,6 +813,35 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             if (timelineSegments != null) {
                 Text("الخط الزمني للمقاطع", style = MaterialTheme.typography.titleMedium)
                 Text("المدة الإجمالية: ${ClipSequenceTimelineRules.formatTime(ClipSequenceTimelineRules.totalDurationMs(timelineSegments))}")
+                val timelineDurationMs = ClipSequenceTimelineRules.totalDurationMs(timelineSegments)
+                val cursor = timelineCursorMs.coerceIn(0f, timelineDurationMs.toFloat())
+                val selectedClipIndex = ClipSequenceTimelineRules.clipIndexAt(timelineSegments, cursor.toLong())
+                val sourcePosition = ClipSequenceTimelineRules.sourcePositionAt(timelineSegments, cursor.toLong())
+                Text("موضع المؤشر: ${ClipSequenceTimelineRules.formatTime(cursor.toLong())} / ${ClipSequenceTimelineRules.formatTime(timelineDurationMs)}")
+                Slider(
+                    value = cursor,
+                    onValueChange = { timelineCursorMs = it },
+                    valueRange = 0f..timelineDurationMs.toFloat().coerceAtLeast(1f),
+                    enabled = !busy && timelineDurationMs > 0L
+                )
+                if (selectedClipIndex >= 0 && sourcePosition != null) {
+                    Text("المقطع الحالي: ${selectedClipIndex + 1} — الوقت داخل الملف الأصلي: ${ClipSequenceTimelineRules.formatTime(sourcePosition.second)}")
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { timelineCursorMs = 0f },
+                        enabled = !busy && timelineDurationMs > 0L
+                    ) { Text("البداية") }
+                    OutlinedButton(
+                        onClick = {
+                            val next = timelineSegments.firstOrNull { it.timelineStartMs > cursor.toLong() }
+                            timelineCursorMs = (next?.timelineStartMs ?: timelineDurationMs).toFloat()
+                        },
+                        enabled = !busy && timelineDurationMs > 0L
+                    ) { Text("المقطع التالي") }
+                }
+                Text("هذا المؤشر يحدد المقطع وتوقيته؛ لا يشغّل الفيديو داخل هذه المعاينة.",
+                    style = MaterialTheme.typography.bodySmall)
                 Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     timelineSegments.forEachIndexed { index, segment ->
