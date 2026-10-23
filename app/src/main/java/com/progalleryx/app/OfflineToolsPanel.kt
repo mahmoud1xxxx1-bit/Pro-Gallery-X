@@ -422,6 +422,47 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 }, onValueChangeFinished = { adjustingSlider = false }, enabled = !busy)
                 Text("الإزاحة تطبق على الملف الناتج؛ المعاينة الحالية لا تعرض موضع القص بدقة.")
             }
+            HorizontalDivider()
+            Text("طبقات نص مستقلة (حتى 3)", style = MaterialTheme.typography.titleMedium)
+            Button(onClick = { snapshot(); textLayers = textLayers + PhotoTextLayer("", 0.5f, 0.3f + 0.2f * textLayers.size) },
+                enabled = !busy && textLayers.size < 3) { Text("إضافة طبقة نص") }
+            textLayers.forEachIndexed { index, layer ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("طبقة ${index + 1}")
+                            TextButton(onClick = { snapshot(); textLayers = textLayers.filterIndexed { i, _ -> i != index } },
+                                enabled = !busy) { Text("حذف الطبقة") }
+                        }
+                        OutlinedTextField(value = layer.text, onValueChange = { value ->
+                            snapshot()
+                            textLayers = textLayers.toMutableList().also { it[index] = layer.copy(text = value.take(80)) }
+                        }, label = { Text("نص الطبقة") }, singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !busy)
+                        Text("الموقع أفقيًا")
+                        Slider(value = layer.x, onValueChange = { value ->
+                            if (!adjustingSlider) { snapshot(); adjustingSlider = true }
+                            textLayers = textLayers.toMutableList().also { it[index] = layer.copy(x = value) }
+                        }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 0.05f..0.95f, enabled = !busy)
+                        Text("الموقع عموديًا")
+                        Slider(value = layer.y, onValueChange = { value ->
+                            if (!adjustingSlider) { snapshot(); adjustingSlider = true }
+                            textLayers = textLayers.toMutableList().also { it[index] = layer.copy(y = value) }
+                        }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 0.05f..0.95f, enabled = !busy)
+                        Text("حجم الطبقة: ${layer.size}")
+                        Slider(value = layer.size.toFloat(), onValueChange = { value ->
+                            if (!adjustingSlider) { snapshot(); adjustingSlider = true }
+                            textLayers = textLayers.toMutableList().also { it[index] = layer.copy(size = value.toInt()) }
+                        }, onValueChangeFinished = { adjustingSlider = false }, valueRange = 16f..72f, enabled = !busy)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = layer.dark, onCheckedChange = { value ->
+                                snapshot()
+                                textLayers = textLayers.toMutableList().also { it[index] = layer.copy(dark = value) }
+                            }, enabled = !busy)
+                            Text("نص داكن")
+                        }
+                    }
+                }
+            }
             Text("نص على الصورة", style = MaterialTheme.typography.titleSmall)
             OutlinedTextField(value = caption, onValueChange = { snapshot(); caption = it.take(80) },
                 label = { Text("اكتب نصًا يظهر أسفل الصورة") },
