@@ -35,7 +35,7 @@ class MediaRepository(private val context: Context) {
     }
 
     /** Queries at most [count] records from MediaStore. No image bitmap is decoded here. */
-    suspend fun page(offset: Int, count: Int = 80, filter: MediaFilter = MediaFilter.ALL, albumId: Long? = null): List<GalleryMedia> =
+    suspend fun page(offset: Int, count: Int = 80, filter: MediaFilter = MediaFilter.ALL, albumId: Long? = null, search: String = ""): List<GalleryMedia> =
         withContext(Dispatchers.IO) {
             require(offset >= 0 && count in 1..200)
             val idColumn = MediaStore.Files.FileColumns._ID
@@ -51,9 +51,12 @@ class MediaRepository(private val context: Context) {
             }
             val albumWhere = if (albumId == null) where else "($where) AND ${MediaStore.MediaColumns.BUCKET_ID} = ?"
             val albumValues = if (albumId == null) values else values + albumId.toString()
+            val searchText = search.trim().take(80)
+            val searchWhere = if (searchText.isEmpty()) albumWhere else "($albumWhere) AND ${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?"
+            val searchValues = if (searchText.isEmpty()) albumValues else albumValues + "%$searchText%"
             val args = Bundle().apply {
-                putString(ContentResolver.QUERY_ARG_SQL_SELECTION, albumWhere)
-                putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, albumValues)
+                putString(ContentResolver.QUERY_ARG_SQL_SELECTION, searchWhere)
+                putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, searchValues)
                 putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(dateColumn, idColumn))
                 putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
                 putInt(ContentResolver.QUERY_ARG_LIMIT, count)
