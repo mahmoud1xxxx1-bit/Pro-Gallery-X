@@ -19,8 +19,62 @@ import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+data class VideoJoinPart(val source: Uri, val startMs: Long, val endMs: Long)
+
 /** Concatenate 2–12 video clips on-device. Originals never overwritten. */
 object MultiClipEditor {
+    /** Join individually trimmed segments; validate times against actual metadata. */
+    suspend fun exportParts(context: Context, parts: List<VideoJoinPart>, destination: Uri) {
+        require(parts.size in 2..12)
+        require(parts.map { it.source }.distinct().size == parts.size)
+        require(parts.none { it.source == destination })
+        withContext(Dispatchers.IO) {
+            for (part in parts) {
+                val retriever = android.media.MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(context, part.source)
+                    val duration = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                        ?: throw IOException("Unable to read duration")
+                    require(VideoExportRules.validTrim(part.startMs, part.endMs, duration)) { "Invalid clip bounds" }
+                } finally { retriever.release() }
+            }
+        }
+        val temp = File.createTempFile("pgx_joinparts_", ".mp4", context.cacheDir)
+        try {
+            if (!temp.delete()) throw IOException("Cannot prepare export path")
+            withContext(Dispatchers.Main) {
+                suspendCancellableCoroutine<Unit> { cont ->
+                    val items = parts.map { part ->
+                        val item = MediaItem.Builder().setUri(part.source)
+                            .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder()
+                                .setStartPositionMs(part.startMs).setEndPositionMs(part.endMs).build())
+                            .build()
+                        EditedMediaItem.Builder(item).build()
+                    }
+                    val composition = Composition.Builder(EditedMediaItemSequence.Builder(items).build()).build()
+                    val transformer = Transformer.Builder(context).addListener(object : Transformer.Listener {
+                        override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                            if (cont.isActive) cont.resume(Unit)
+                        }
+                        override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) {
+                            if (cont.isActive) cont.resumeWithException(exportException)
+                        }
+                    }).build()
+                    cont.invokeOnCancellation { transformer.cancel() }
+                    try { transformer.start(composition, temp.absolutePath) }
+                    catch (error: Exception) { if (cont.isActive) cont.resumeWithException(error) }
+                }
+            }
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            if (!temp.exists() || temp.length() <= 0L) throw IOException("Empty merge export")
+            withContext(Dispatchers.IO) {
+                context.contentResolver.openOutputStream(destination, "w")?.use { out ->
+                    temp.inputStream().use { it.copyTo(out, 256 * 1024) }
+                } ?: throw IOException("Destination is not writable")
+            }
+        } finally { temp.delete() }
+    }
+
     suspend fun export(context: Context, sources: List<Uri>, destination: Uri) {
         require(sources.size in 2..12) { "Choose 2 to 12 clips" }
         require(sources.distinct().size == sources.size) { "Duplicate clips selected" }

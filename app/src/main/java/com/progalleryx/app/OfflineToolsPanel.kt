@@ -48,13 +48,16 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var selectedVideo by remember { mutableStateOf<Uri?>(null) }
     var clipsToJoin by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var joinRanges by remember { mutableStateOf<Map<Uri, Pair<Float, Float>>>(emptyMap()) }
+    var joinDurations by remember { mutableStateOf<Map<Uri, Float>>(emptyMap()) }
     val joinOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { dest ->
         if (!busy && dest != null && clipsToJoin.size in 2..12) {
-            val orderedClips = clipsToJoin.toList()
+            val orderedClips = clipsToJoin.mapNotNull { uri -> joinRanges[uri]?.let { VideoJoinPart(uri, (it.first * 1000f).toLong(), (it.second * 1000f).toLong()) } }
+            if (orderedClips.size != clipsToJoin.size) return@rememberLauncherForActivityResult
             busy = true
             scope.launch {
                 try {
-                    MultiClipEditor.export(context, orderedClips, dest)
+                    MultiClipEditor.exportParts(context, orderedClips, dest)
                     message = "تم دمج المقاطع"
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     message = "أُلغي تصدير الفيديو"
@@ -67,6 +70,27 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     }
     val joinInput = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { selected ->
         clipsToJoin = selected.distinct().take(12)
+        joinRanges = emptyMap()
+        joinDurations = emptyMap()
+        val captured = clipsToJoin.toList()
+        scope.launch {
+            val durations = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                captured.mapNotNull { uri ->
+                    val retriever = android.media.MediaMetadataRetriever()
+                    try {
+                        retriever.setDataSource(context, uri)
+                        val ms = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                        if (ms >= 500L) uri to (ms / 1000f) else null
+                    } catch (_: Exception) { null }
+                    finally { retriever.release() }
+                }.toMap()
+            }
+            if (captured == clipsToJoin) {
+                joinDurations = durations
+                joinRanges = durations.mapValues { 0f to it.value }
+                message = if (durations.size == captured.size) "حدد قص كل مقطع ثم صدّر" else "تعذر قراءة بعض المقاطع؛ احذف غير الصالح"
+            }
+        }
         message = if (clipsToJoin.size in 2..12) "رتّب المقاطع ثم صدّر الفيديو" else "اختر مقطعين على الأقل"
     }
     var muteVideoAudio by remember { mutableStateOf(false) }
@@ -617,8 +641,22 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                     }, enabled = !busy && index < clipsToJoin.lastIndex) { Text("↓") }
                 }
             }
+            clipsToJoin.forEachIndexed { index, uri ->
+                joinRanges[uri]?.let { (start, end) ->
+                    val duration = joinDurations[uri] ?: end
+                    Text("المقطع ${index + 1}: من ${"%.1f".format(start)} إلى ${"%.1f".format(end)} ثانية")
+                    Text("نقطة البداية")
+                    Slider(value = start, onValueChange = { value ->
+                        joinRanges = joinRanges + (uri to (value.coerceAtMost(end - 0.5f) to end))
+                    }, valueRange = 0f..(duration - 0.5f).coerceAtLeast(0f), enabled = !busy)
+                    Text("نقطة النهاية")
+                    Slider(value = end, onValueChange = { value ->
+                        joinRanges = joinRanges + (uri to (start to value.coerceAtLeast(start + 0.5f)))
+                    }, valueRange = 0.5f..duration, enabled = !busy)
+                }
+            }
             Button(onClick = { joinOutput.launch("ProGalleryX-joined.mp4") },
-                enabled = !busy && clipsToJoin.size in 2..12, modifier = Modifier.fillMaxWidth()) {
+                enabled = !busy && clipsToJoin.size in 2..12 && clipsToJoin.all { joinRanges.containsKey(it) }, modifier = Modifier.fillMaxWidth()) {
                 Text("تصدير الفيديو المدمج")
             }
         }
