@@ -201,8 +201,9 @@ fun SequentialTimelinePlayback(
             kotlinx.coroutines.delay(100L)
             if (player.currentPosition.toLong() >= part.sourceEndMs || !player.isPlaying) {
                 player.pause()
-                if (index < segments.lastIndex) {
-                    index += 1
+                val next = ClipSequenceTimelineRules.nextClipIndex(index, segments.size)
+                if (next != null) {
+                    index = next
                 } else {
                     playing = false
                     index = 0
@@ -241,7 +242,8 @@ fun SequentialTimelinePlayback(
                 player.seekTo(segments.first().sourceStartMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
             }) { androidx.compose.material3.Text("من البداية") }
             androidx.compose.material3.TextButton(onClick = {
-                if (index < segments.lastIndex) index += 1 else playing = false
+                val next = ClipSequenceTimelineRules.nextClipIndex(index, segments.size)
+                if (next != null) index = next else playing = false
             }) { androidx.compose.material3.Text("التالي") }
         }
         if (error) androidx.compose.material3.Text("تعذر تشغيل أحد المقاطع على الجهاز")
