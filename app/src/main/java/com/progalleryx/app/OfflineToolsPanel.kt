@@ -104,7 +104,8 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var videoDuration by remember { mutableFloatStateOf(0f) }
     var videoInfoValid by remember { mutableStateOf(false) }
     var soundtrackUri by remember { mutableStateOf<Uri?>(null) }
-    val soundtrackPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { soundtrackUri = it }
+    var soundtrackOffset by remember { mutableFloatStateOf(0f) }
+    val soundtrackPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { soundtrackUri = it; soundtrackOffset = 0f }
     val soundtrackOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { target ->
         val video = selectedVideo
         val audio = soundtrackUri
@@ -114,7 +115,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
             busy = true
             scope.launch {
                 try {
-                    VideoSoundtrackEditor.export(context, video, audio, target, start, end)
+                    VideoSoundtrackEditor.export(context, video, audio, target, start, end, (soundtrackOffset * 1000).toLong())
                     message = "تم تصدير الفيديو مع المقطع الصوتي المختار"
                 } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                 catch (error: Exception) { message = "تعذر تصدير الصوت: ${error.localizedMessage}" }
@@ -761,7 +762,11 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 Text(if (soundtrackUri == null) "اختيار ملف صوتي" else "تغيير الملف الصوتي")
             }
             if (soundtrackUri != null) {
-                Text("تم اختيار ملف صوتي؛ سيتم استخدام أول ${(endSecond - startSecond).toInt()} ثانية منه.")
+                Text("بداية الموسيقى (بالثواني): ${"%.1f".format(soundtrackOffset)}")
+                Slider(value = soundtrackOffset, onValueChange = { soundtrackOffset = it },
+                    valueRange = 0f..120f, enabled = !busy)
+                Text("يجب ألا تتجاوز مدة الموسيقى المتبقية طول الفيديو؛ سيُتحقق من ذلك عند التصدير.")
+                Text("تم اختيار ملف صوتي؛ سيتم استخدام ${(endSecond - startSecond).toInt()} ثانية منه.")
                 OutlinedButton(onClick = { soundtrackUri = null }, enabled = !busy) { Text("إزالة الملف الصوتي") }
                 Button(onClick = { soundtrackOutput.launch("ProGalleryX-with-music.mp4") },
                     enabled = !busy && videoInfoValid && VideoExportRules.validTrim(
