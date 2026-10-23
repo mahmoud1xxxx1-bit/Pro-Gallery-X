@@ -305,7 +305,18 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                         colorFilter = ColorFilter.colorMatrix(ColorMatrix(photoMatrix.array.copyOf())),
                         contentScale = if (cropRatio == 0f) ContentScale.Fit else ContentScale.Crop,
                         alignment = if (cropRatio == 0f) Alignment.Center else androidx.compose.ui.BiasAlignment(cropX * 2f - 1f, cropY * 2f - 1f),
-                        modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = rotation.toFloat(); scaleX = if (flipHorizontal) -1f else 1f; scaleY = if (flipVertical) -1f else 1f }
+                        modifier = Modifier.fillMaxSize()
+                            .pointerInput(cropRatio) {
+                                if (cropRatio != 0f) detectDragGestures(
+                                    onDragStart = { snapshot() },
+                                    onDrag = { change, drag ->
+                                        change.consume()
+                                        cropX = (cropX - drag.x / size.width.toFloat()).coerceIn(0f, 1f)
+                                        cropY = (cropY - drag.y / size.height.toFloat()).coerceIn(0f, 1f)
+                                    }
+                                )
+                            }
+                            .graphicsLayer { rotationZ = rotation.toFloat(); scaleX = if (flipHorizontal) -1f else 1f; scaleY = if (flipVertical) -1f else 1f }
                     )
                     if (caption.isNotBlank()) Text(
                         caption,
