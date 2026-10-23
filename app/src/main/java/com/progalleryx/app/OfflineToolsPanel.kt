@@ -287,7 +287,7 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                         contentDescription = "معاينة التعديلات",
                         colorFilter = ColorFilter.colorMatrix(ColorMatrix(photoMatrix.array.copyOf())),
                         contentScale = if (cropRatio == 0f) ContentScale.Fit else ContentScale.Crop,
-                        alignment = if (cropRatio == 0f) Alignment.Center else androidx.compose.ui.Alignment(cropX * 2f - 1f, cropY * 2f - 1f),
+                        alignment = if (cropRatio == 0f) Alignment.Center else androidx.compose.ui.BiasAlignment(cropX * 2f - 1f, cropY * 2f - 1f),
                         modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = rotation.toFloat(); scaleX = if (flipHorizontal) -1f else 1f; scaleY = if (flipVertical) -1f else 1f }
                     )
                     if (caption.isNotBlank()) Text(
