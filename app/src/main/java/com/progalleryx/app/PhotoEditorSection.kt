@@ -6,28 +6,37 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.ui.text.font.FontWeight
+enum class StudioToolTab {
+    TUNE,
+    FILTERS,
+    TEXT,
+    STICKERS,
+    DRAW,
+    TRANSFORM,
+    EXPORT
+}
 
 @Composable
 fun PhotoEditorSection(
@@ -54,82 +63,90 @@ fun PhotoEditorSection(
     var cropY by remember { mutableFloatStateOf(0.5f) }
     var jpegQuality by remember { mutableIntStateOf(92) }
     var maxDimension by remember { mutableIntStateOf(2400) }
-    var caption by remember { mutableStateOf("") }
-    var captionDark by remember { mutableStateOf(false) }
-    var captionSize by remember { mutableIntStateOf(32) }
-    var captionPosition by remember { mutableFloatStateOf(0.9f) }
-    var textLayers by remember { mutableStateOf<List<PhotoTextLayer>>(emptyList()) }
-    var brushStrokes by remember { mutableStateOf<List<BrushStroke>>(emptyList()) }
-    var brushMode by remember { mutableStateOf(false) }
-    var brushDark by remember { mutableStateOf(false) }
-    var brushWidth by remember { mutableFloatStateOf(0.01f) }
     var selectedPresetId by remember { mutableStateOf(PhotoFilterPresets.ORIGINAL.id) }
 
-    var undoStack by remember { mutableStateOf<List<PhotoAdjustments>>(emptyList()) }
-    var redoStack by remember { mutableStateOf<List<PhotoAdjustments>>(emptyList()) }
+    // Interactive Layers State
+    var textLayers by remember { mutableStateOf<List<InteractiveTextLayer>>(emptyList()) }
+    var stickerLayers by remember { mutableStateOf<List<InteractiveStickerLayer>>(emptyList()) }
+    var brushStrokes by remember { mutableStateOf<List<SmoothBrushStroke>>(emptyList()) }
+    var activeLayerId by remember { mutableStateOf<String?>(null) }
+
+    // Brush Tooling State
+    var brushMode by remember { mutableStateOf(false) }
+    var brushColorArgb by remember { mutableLongStateOf(0xFFFF3B30L) }
+    var brushWidthNormalized by remember { mutableFloatStateOf(0.015f) }
+
+    // Dialog & Tool Mode State
+    var activeToolTab by remember { mutableStateOf(StudioToolTab.TUNE) }
+    var showTextDialog by remember { mutableStateOf(false) }
+    var editingTextLayer by remember { mutableStateOf<InteractiveTextLayer?>(null) }
+    var showStickerDialog by remember { mutableStateOf(false) }
+
+    // Undo / Redo stacks
+    var undoStack by remember { mutableStateOf<List<PhotoStudioProject>>(emptyList()) }
+    var redoStack by remember { mutableStateOf<List<PhotoStudioProject>>(emptyList()) }
     var adjustingSlider by remember { mutableStateOf(false) }
 
+    // Batch Processing State
     var batchSources by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var batchProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
-    fun currentAdjustments(): PhotoAdjustments = PhotoAdjustments(
+    fun currentProject(): PhotoStudioProject = PhotoStudioProject(
         brightness = brightness,
         contrast = contrast,
         saturation = saturation,
+        temperature = temperature,
+        tint = tint,
         rotation = rotation,
         flipHorizontal = flipHorizontal,
         flipVertical = flipVertical,
         cropRatio = cropRatio,
-        jpegQuality = jpegQuality,
-        caption = caption,
-        captionDark = captionDark,
-        captionSize = captionSize,
-        captionPosition = captionPosition,
-        maxDimension = maxDimension,
         cropX = cropX,
         cropY = cropY,
-        temperature = temperature,
-        tint = tint,
+        filterId = selectedPresetId,
         textLayers = textLayers,
-        brushStrokes = brushStrokes
+        stickerLayers = stickerLayers,
+        brushStrokes = brushStrokes,
+        activeLayerId = activeLayerId
     )
 
-    fun applyState(adj: PhotoAdjustments) {
-        brightness = adj.brightness
-        contrast = adj.contrast
-        saturation = adj.saturation
-        rotation = adj.rotation
-        flipHorizontal = adj.flipHorizontal
-        flipVertical = adj.flipVertical
-        cropRatio = adj.cropRatio
-        jpegQuality = adj.jpegQuality
-        caption = adj.caption
-        captionDark = adj.captionDark
-        captionSize = adj.captionSize
-        captionPosition = adj.captionPosition
-        maxDimension = adj.maxDimension
-        cropX = adj.cropX
-        cropY = adj.cropY
-        temperature = adj.temperature
-        tint = adj.tint
-        textLayers = adj.textLayers
-        brushStrokes = adj.brushStrokes
+    fun applyProject(proj: PhotoStudioProject) {
+        brightness = proj.brightness
+        contrast = proj.contrast
+        saturation = proj.saturation
+        temperature = proj.temperature
+        tint = proj.tint
+        rotation = proj.rotation
+        flipHorizontal = proj.flipHorizontal
+        flipVertical = proj.flipVertical
+        cropRatio = proj.cropRatio
+        cropX = proj.cropX
+        cropY = proj.cropY
+        selectedPresetId = proj.filterId
+        textLayers = proj.textLayers
+        stickerLayers = proj.stickerLayers
+        brushStrokes = proj.brushStrokes
+        activeLayerId = proj.activeLayerId
     }
 
     fun snapshot() {
-        undoStack = (undoStack + currentAdjustments()).takeLast(30)
+        undoStack = (undoStack + currentProject()).takeLast(30)
         redoStack = emptyList()
     }
 
     val editedOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { target ->
         val source = editSource
         if (!busy && target != null && source != null) {
-            val adjustments = currentAdjustments()
+            val project = currentProject()
+            val adjustments = project.toLegacyAdjustments().copy(
+                jpegQuality = jpegQuality,
+                maxDimension = maxDimension
+            )
             onBusyChange(true)
             scope.launch {
                 try {
                     PhotoEditor.export(context, source, target, adjustments)
-                    onMessageChange("تم تصدير الصورة بنجاح")
+                    onMessageChange("تم تصدير وحفظ الصورة بنجاح")
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
@@ -148,8 +165,8 @@ fun PhotoEditorSection(
             rotation = 0; flipHorizontal = false; flipVertical = false
             cropRatio = 0f; cropX = 0.5f; cropY = 0.5f
             jpegQuality = 92; maxDimension = 2400
-            caption = ""; captionDark = false; captionSize = 32; captionPosition = 0.9f
-            textLayers = emptyList(); brushStrokes = emptyList(); brushMode = false
+            textLayers = emptyList(); stickerLayers = emptyList(); brushStrokes = emptyList()
+            activeLayerId = null; brushMode = false
             selectedPresetId = PhotoFilterPresets.ORIGINAL.id
             undoStack = emptyList(); redoStack = emptyList()
         }
@@ -162,39 +179,73 @@ fun PhotoEditorSection(
         }
     }
 
-    val singleRotateOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { target ->
-        val source = editSource
-        if (!busy && target != null && source != null) {
-            onBusyChange(true)
-            scope.launch {
-                try {
-                    OfflineExports.rotateAndSave(context, source, target)
-                    onMessageChange("تم حفظ النسخة المدوّرة")
-                } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                    throw cancelled
-                } catch (error: Exception) {
-                    onMessageChange("تعذر التدوير: ${error.localizedMessage}")
-                } finally {
-                    onBusyChange(false)
-                }
-            }
-        }
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (onClose != null) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // 1. Studio Top Navigation Bar
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (onClose != null) {
                 IconButton(onClick = onClose) {
                     Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "رجوع")
                 }
-                Text("محرر الصور", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.width(48.dp))
+            }
+            Text(
+                "استوديو تحرير الصور",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Undo
+                IconButton(
+                    onClick = {
+                        val previous = undoStack.last()
+                        redoStack = (redoStack + currentProject()).takeLast(30)
+                        undoStack = undoStack.dropLast(1)
+                        applyProject(previous)
+                    },
+                    enabled = !busy && undoStack.isNotEmpty()
+                ) {
+                    Icon(Icons.Default.Undo, contentDescription = "تراجع")
+                }
+                // Redo
+                IconButton(
+                    onClick = {
+                        val next = redoStack.last()
+                        redoStack = redoStack.dropLast(1)
+                        undoStack = (undoStack + currentProject()).takeLast(30)
+                        applyProject(next)
+                    },
+                    enabled = !busy && redoStack.isNotEmpty()
+                ) {
+                    Icon(Icons.Default.Redo, contentDescription = "إعادة")
+                }
+                // Reset
+                IconButton(
+                    onClick = {
+                        snapshot()
+                        brightness = 0f; contrast = 1f; saturation = 1f; temperature = 0f; tint = 0f
+                        rotation = 0; flipHorizontal = false; flipVertical = false
+                        cropRatio = 0f; cropX = 0.5f; cropY = 0.5f
+                        selectedPresetId = PhotoFilterPresets.ORIGINAL.id
+                        textLayers = emptyList(); stickerLayers = emptyList(); brushStrokes = emptyList()
+                        activeLayerId = null
+                    },
+                    enabled = !busy && editSource != null
+                ) {
+                    Icon(Icons.Default.RestartAlt, contentDescription = "إعادة الضبط")
+                }
             }
         }
+
+        // Selection buttons (Pick photo / Batch)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -204,6 +255,8 @@ fun PhotoEditorSection(
                 enabled = !busy,
                 modifier = Modifier.weight(1f)
             ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(Modifier.width(4.dp))
                 Text(if (editSource == null) "اختيار صورة للتحرير" else "تغيير الصورة")
             }
 
@@ -216,12 +269,12 @@ fun PhotoEditorSection(
             }
         }
 
-        // Batch processing bar
+        // Batch processing card
         if (batchSources.isNotEmpty()) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("المعالجة الجماعية لـ ${batchSources.size} صور", style = MaterialTheme.typography.titleMedium)
-                    Text("سيتم تطبيق الفلتر والتعديلات الحالية على كل الصور وحفظها في التخزين.", style = MaterialTheme.typography.bodySmall)
+                    Text("سيتم تطبيق التعديلات الحالية على كل الصور وحفظها في المعرض.", style = MaterialTheme.typography.bodySmall)
 
                     if (batchProgress != null) {
                         LinearProgressIndicator(
@@ -236,7 +289,10 @@ fun PhotoEditorSection(
                             onClick = {
                                 onBusyChange(true)
                                 scope.launch {
-                                    val adj = currentAdjustments()
+                                    val adj = currentProject().toLegacyAdjustments().copy(
+                                        jpegQuality = jpegQuality,
+                                        maxDimension = maxDimension
+                                    )
                                     var exportedCount = 0
                                     try {
                                         for (i in batchSources.indices) {
@@ -264,7 +320,7 @@ fun PhotoEditorSection(
                                             }
                                             exportedCount++
                                         }
-                                        onMessageChange("اكتمل تصدير الدفعة: تم بنجاح $exportedCount صورة إلى المعرض (Pictures/ProGalleryX)")
+                                        onMessageChange("اكتمل تصدير الدفعة: تم حفظ $exportedCount صورة إلى المعرض بنجاح")
                                     } catch (cancelled: kotlinx.coroutines.CancellationException) {
                                         onMessageChange("أُلغيت معالجة الدفعة")
                                         throw cancelled
@@ -292,7 +348,7 @@ fun PhotoEditorSection(
             }
         }
 
-        // Active Photo Editing Workspace
+        // Active Photo Workspace Canvas
         if (editSource != null) {
             val photoMatrix = remember(brightness, contrast, saturation, temperature, tint) {
                 android.graphics.ColorMatrix().apply {
@@ -302,17 +358,18 @@ fun PhotoEditorSection(
                 }
             }
 
-            // Preview frame with unified coordinate system
+            // Visual Frame Container
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(280.dp)
-                        .background(Color(0xFF1E242B)),
+                        .height(320.dp)
+                        .background(Color(0xFF14181D)),
                     contentAlignment = Alignment.Center
                 ) {
                     val frameAspect = if (cropRatio > 0f) cropRatio else (if (rotation == 90 || rotation == 270) 0.75f else 1.33f)
@@ -320,10 +377,12 @@ fun PhotoEditorSection(
                     Box(
                         modifier = Modifier
                             .aspectRatio(frameAspect, matchHeightConstraintsFirst = true)
-                            .fillMaxHeight(0.92f)
+                            .fillMaxHeight(0.94f)
+                            .clip(RoundedCornerShape(8.dp))
                             .background(Color.Black),
                         contentAlignment = Alignment.Center
                     ) {
+                        // Background Photo
                         AsyncImage(
                             model = editSource,
                             contentDescription = "معاينة الصورة",
@@ -346,397 +405,577 @@ fun PhotoEditorSection(
                                 }
                         )
 
-                        // Brush canvas overlay strictly inside image frame
-                        Canvas(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .pointerInput(brushMode, brushDark, brushWidth, brushStrokes.size) {
-                                    if (brushMode) {
-                                        detectDragGestures(
-                                            onDragStart = { position ->
-                                                if (brushStrokes.size < 100) {
-                                                    snapshot()
-                                                    val nx = (position.x / size.width).coerceIn(0f, 1f)
-                                                    val ny = (position.y / size.height).coerceIn(0f, 1f)
-                                                    brushStrokes = brushStrokes + BrushStroke(
-                                                        listOf(BrushPoint(nx, ny)),
-                                                        brushDark,
-                                                        brushWidth
-                                                    )
+                        // Direct Interactive Layer Canvas Overlay
+                        InteractiveLayerCanvas(
+                            modifier = Modifier.fillMaxSize(),
+                            textLayers = textLayers,
+                            stickerLayers = stickerLayers,
+                            brushStrokes = brushStrokes,
+                            activeLayerId = activeLayerId,
+                            brushMode = brushMode,
+                            brushColorArgb = brushColorArgb,
+                            brushWidthNormalized = brushWidthNormalized,
+                            onSelectLayer = { activeLayerId = it },
+                            onUpdateTextLayer = { updated ->
+                                textLayers = textLayers.map { if (it.id == updated.id) updated else it }
+                            },
+                            onUpdateStickerLayer = { updated ->
+                                stickerLayers = stickerLayers.map { if (it.id == updated.id) updated else it }
+                            },
+                            onDeleteLayer = { id ->
+                                snapshot()
+                                textLayers = textLayers.filterNot { it.id == id }
+                                stickerLayers = stickerLayers.filterNot { it.id == id }
+                                if (activeLayerId == id) activeLayerId = null
+                            },
+                            onDuplicateLayer = { id ->
+                                snapshot()
+                                textLayers.find { it.id == id }?.let { original ->
+                                    val (nx, ny) = LayerTransformRules.computeDuplicatePosition(original.normalizedX, original.normalizedY)
+                                    val cloned = original.copy(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        normalizedX = nx,
+                                        normalizedY = ny
+                                    )
+                                    textLayers = textLayers + cloned
+                                    activeLayerId = cloned.id
+                                }
+                                stickerLayers.find { it.id == id }?.let { original ->
+                                    val (nx, ny) = LayerTransformRules.computeDuplicatePosition(original.normalizedX, original.normalizedY)
+                                    val cloned = original.copy(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        normalizedX = nx,
+                                        normalizedY = ny
+                                    )
+                                    stickerLayers = stickerLayers + cloned
+                                    activeLayerId = cloned.id
+                                }
+                            },
+                            onEditTextLayer = { layer ->
+                                editingTextLayer = layer
+                                showTextDialog = true
+                            },
+                            onAddBrushStroke = { stroke ->
+                                snapshot()
+                                brushStrokes = brushStrokes + stroke
+                            },
+                            onAppendStrokePoint = { point ->
+                                if (brushStrokes.isNotEmpty()) {
+                                    val current = brushStrokes.last()
+                                    brushStrokes = brushStrokes.dropLast(1) + current.copy(
+                                        points = current.points + point
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
+            // 2. Studio Tool Category Tabs (Snapseed / Samsung Gallery Style)
+            ScrollableTabRow(
+                selectedTabIndex = activeToolTab.ordinal,
+                edgePadding = 8.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Tab(
+                    selected = activeToolTab == StudioToolTab.TUNE,
+                    onClick = { activeToolTab = StudioToolTab.TUNE; brushMode = false },
+                    text = { Text("الضبط") },
+                    icon = { Icon(Icons.Default.Tune, contentDescription = null) }
+                )
+                Tab(
+                    selected = activeToolTab == StudioToolTab.FILTERS,
+                    onClick = { activeToolTab = StudioToolTab.FILTERS; brushMode = false },
+                    text = { Text("الفلاتر") },
+                    icon = { Icon(Icons.Default.Filter, contentDescription = null) }
+                )
+                Tab(
+                    selected = activeToolTab == StudioToolTab.TEXT,
+                    onClick = { activeToolTab = StudioToolTab.TEXT; brushMode = false },
+                    text = { Text("النصوص (${textLayers.size})") },
+                    icon = { Icon(Icons.Default.TextFields, contentDescription = null) }
+                )
+                Tab(
+                    selected = activeToolTab == StudioToolTab.STICKERS,
+                    onClick = { activeToolTab = StudioToolTab.STICKERS; brushMode = false },
+                    text = { Text("ملصقات (${stickerLayers.size})") },
+                    icon = { Icon(Icons.Default.EmojiEmotions, contentDescription = null) }
+                )
+                Tab(
+                    selected = activeToolTab == StudioToolTab.DRAW,
+                    onClick = { activeToolTab = StudioToolTab.DRAW; brushMode = true },
+                    text = { Text("الرسم") },
+                    icon = { Icon(Icons.Default.Brush, contentDescription = null) }
+                )
+                Tab(
+                    selected = activeToolTab == StudioToolTab.TRANSFORM,
+                    onClick = { activeToolTab = StudioToolTab.TRANSFORM; brushMode = false },
+                    text = { Text("التحويل") },
+                    icon = { Icon(Icons.Default.Crop, contentDescription = null) }
+                )
+                Tab(
+                    selected = activeToolTab == StudioToolTab.EXPORT,
+                    onClick = { activeToolTab = StudioToolTab.EXPORT; brushMode = false },
+                    text = { Text("التصدير") },
+                    icon = { Icon(Icons.Default.Save, contentDescription = null) }
+                )
+            }
+
+            // 3. Contextual Controls Body
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    when (activeToolTab) {
+                        StudioToolTab.TUNE -> {
+                            Text("تعديلات الإضاءة والألوان", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+
+                            Text("السطوع: ${brightness.toInt()}")
+                            Slider(
+                                value = brightness,
+                                onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; brightness = it },
+                                onValueChangeFinished = { adjustingSlider = false },
+                                valueRange = -100f..100f
+                            )
+
+                            Text("التباين: ${(contrast * 100).toInt()}%")
+                            Slider(
+                                value = contrast,
+                                onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; contrast = it },
+                                onValueChangeFinished = { adjustingSlider = false },
+                                valueRange = 0.5f..1.5f
+                            )
+
+                            Text("التشبع: ${(saturation * 100).toInt()}%")
+                            Slider(
+                                value = saturation,
+                                onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; saturation = it },
+                                onValueChangeFinished = { adjustingSlider = false },
+                                valueRange = 0f..2f
+                            )
+
+                            Text("حرارة اللون: ${temperature.toInt()}")
+                            Slider(
+                                value = temperature,
+                                onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; temperature = it },
+                                onValueChangeFinished = { adjustingSlider = false },
+                                valueRange = -100f..100f
+                            )
+
+                            Text("تدرج الصبغة: ${tint.toInt()}")
+                            Slider(
+                                value = tint,
+                                onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; tint = it },
+                                onValueChangeFinished = { adjustingSlider = false },
+                                valueRange = -100f..100f
+                            )
+                        }
+
+                        StudioToolTab.FILTERS -> {
+                            Text("الفلاتر الجاهزة", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                PhotoFilterPresets.all.forEach { preset ->
+                                    FilterChip(
+                                        selected = selectedPresetId == preset.id,
+                                        onClick = {
+                                            snapshot()
+                                            selectedPresetId = preset.id
+                                            val currentAdj = currentProject().toLegacyAdjustments()
+                                            val filtered = PhotoFilterPresets.applyTo(currentAdj, preset)
+                                            brightness = filtered.brightness
+                                            contrast = filtered.contrast
+                                            saturation = filtered.saturation
+                                            temperature = filtered.temperature
+                                            tint = filtered.tint
+                                        },
+                                        label = { Text(preset.displayName) }
+                                    )
+                                }
+                            }
+                        }
+
+                        StudioToolTab.TEXT -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("طبقات النصوص", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Button(
+                                    onClick = {
+                                        editingTextLayer = null
+                                        showTextDialog = true
+                                    },
+                                    enabled = textLayers.size < LayerTransformRules.MAX_LAYERS_COUNT
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("إضافة نص")
+                                }
+                            }
+
+                            if (textLayers.isEmpty()) {
+                                Text("لا توجد طبقات نصوص. اضغط على 'إضافة نص' لكتابة نص جديد على الصورة.", style = MaterialTheme.typography.bodySmall)
+                            } else {
+                                textLayers.forEachIndexed { index, layer ->
+                                    val isSelected = activeLayerId == layer.id
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable { activeLayerId = layer.id },
+                                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                        tonalElevation = 2.dp
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    layer.text.ifBlank { "(نص فارغ)" },
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    maxLines = 1
+                                                )
+                                                Text(
+                                                    "الحجم: ${layer.fontSizeSp.toInt()}sp • التدوير: ${layer.rotationDegrees.toInt()}°",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = Color.Gray
+                                                )
+                                            }
+
+                                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                IconButton(onClick = {
+                                                    editingTextLayer = layer
+                                                    showTextDialog = true
+                                                }) {
+                                                    Icon(Icons.Default.Edit, contentDescription = "تعديل")
                                                 }
-                                            },
-                                            onDrag = { change, _ ->
-                                                change.consume()
-                                                if (brushStrokes.isNotEmpty()) {
-                                                    val current = brushStrokes.last()
-                                                    if (current.points.size < 2000) {
-                                                        val nx = (change.position.x / size.width).coerceIn(0f, 1f)
-                                                        val ny = (change.position.y / size.height).coerceIn(0f, 1f)
-                                                        brushStrokes = brushStrokes.dropLast(1) + current.copy(
-                                                            points = current.points + BrushPoint(nx, ny)
-                                                        )
-                                                    }
+                                                IconButton(onClick = {
+                                                    snapshot()
+                                                    textLayers = textLayers.filterNot { it.id == layer.id }
+                                                    if (activeLayerId == layer.id) activeLayerId = null
+                                                }) {
+                                                    Icon(Icons.Default.Delete, contentDescription = "حذف", tint = MaterialTheme.colorScheme.error)
                                                 }
                                             }
-                                        )
-                                    }
-                                }
-                        ) {
-                            brushStrokes.forEach { stroke ->
-                                if (stroke.points.isNotEmpty()) {
-                                    val path = Path()
-                                    stroke.points.forEachIndexed { idx, point ->
-                                        val px = point.x * size.width
-                                        val py = point.y * size.height
-                                        if (idx == 0) path.moveTo(px, py) else path.lineTo(px, py)
-                                    }
-                                    if (stroke.points.size == 1) {
-                                        drawCircle(
-                                            color = if (stroke.dark) Color.Black else Color.White,
-                                            radius = (size.width * stroke.width) / 2f,
-                                            center = Offset(stroke.points[0].x * size.width, stroke.points[0].y * size.height)
-                                        )
-                                    } else {
-                                        drawPath(
-                                            path = path,
-                                            color = if (stroke.dark) Color.Black else Color.White,
-                                            style = Stroke(
-                                                width = size.width * stroke.width,
-                                                cap = androidx.compose.ui.graphics.StrokeCap.Round
-                                            )
-                                        )
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        // Text layers overlay inside frame
-                        textLayers.forEach { layer ->
-                            if (layer.text.isNotBlank()) {
-                                Text(
-                                    layer.text,
-                                    color = if (layer.dark) Color.Black else Color.White,
-                                    fontSize = (layer.size * 0.45f).sp,
+                        StudioToolTab.STICKERS -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("الملصقات والأشكال", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Button(
+                                    onClick = { showStickerDialog = true },
+                                    enabled = stickerLayers.size < LayerTransformRules.MAX_LAYERS_COUNT
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("إضافة ملصق")
+                                }
+                            }
+
+                            if (stickerLayers.isEmpty()) {
+                                Text("لا توجد ملصقات مضافة. اضغط 'إضافة ملصق' لإضافة رموز تعبيرية أو أشكال.", style = MaterialTheme.typography.bodySmall)
+                            } else {
+                                Text("يمكنك سحب أي ملصق وتكبيره وتدويره مباشرة على الصورة بإصبعين.", style = MaterialTheme.typography.bodySmall)
+                                Row(
                                     modifier = Modifier
-                                        .align(Alignment.TopStart)
-                                        .offset(
-                                            x = (layer.x * 240f).dp,
-                                            y = (layer.y * 200f).dp
-                                        ),
-                                    maxLines = 1
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    stickerLayers.forEach { sticker ->
+                                        Box(
+                                            modifier = Modifier
+                                                .size(50.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(
+                                                    if (activeLayerId == sticker.id) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                                                )
+                                                .clickable { activeLayerId = sticker.id },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (sticker.emoji.isNotBlank()) {
+                                                Text(sticker.emoji, fontSize = 24.sp)
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(sticker.colorArgb))
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        StudioToolTab.DRAW -> {
+                            Text("الرسم الحر بالفرشاة", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("وضع الرسم فوق الصورة")
+                                Switch(
+                                    checked = brushMode,
+                                    onCheckedChange = { brushMode = it }
+                                )
+                            }
+
+                            Text("لون الفرشاة", style = MaterialTheme.typography.labelMedium)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                ColorPaletteRules.STUDIO_COLORS.forEach { colorVal ->
+                                    val isSelected = brushColorArgb == colorVal
+                                    Box(
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(colorVal))
+                                            .border(
+                                                width = if (isSelected) 3.dp else 1.dp,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.5f),
+                                                shape = CircleShape
+                                            )
+                                            .clickable { brushColorArgb = colorVal }
+                                    )
+                                }
+                            }
+
+                            Text("سُمك الفرشاة: ${(brushWidthNormalized * 1000).toInt()}")
+                            Slider(
+                                value = brushWidthNormalized,
+                                onValueChange = { brushWidthNormalized = it },
+                                valueRange = 0.003f..0.04f
+                            )
+
+                            if (brushStrokes.isNotEmpty()) {
+                                OutlinedButton(
+                                    onClick = {
+                                        snapshot()
+                                        brushStrokes = emptyList()
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = null)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("مسح كل الرسومات (${brushStrokes.size})")
+                                }
+                            }
+                        }
+
+                        StudioToolTab.TRANSFORM -> {
+                            Text("التدوير والانعكاس", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { snapshot(); rotation = (rotation + 90) % 360 },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("تدوير 90° ($rotation°)")
+                                }
+                                OutlinedButton(
+                                    onClick = { snapshot(); flipHorizontal = !flipHorizontal },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(if (flipHorizontal) "إلغاء الانعكاس" else "انعكاس أفقي")
+                                }
+                            }
+
+                            Text("نسبة الاقتصاص (Crop)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf(
+                                    "الأصل" to 0f,
+                                    "1:1" to 1f,
+                                    "4:3" to (4f / 3f),
+                                    "16:9" to (16f / 9f),
+                                    "3:4" to (3f / 4f),
+                                    "9:16" to (9f / 16f)
+                                ).forEach { (label, ratio) ->
+                                    FilterChip(
+                                        selected = cropRatio == ratio,
+                                        onClick = { snapshot(); cropRatio = ratio },
+                                        label = { Text(label) }
+                                    )
+                                }
+                            }
+
+                            if (cropRatio != 0f) {
+                                Text("بؤرة الاقتصاص أفقيًا: ${(cropX * 100).toInt()}%")
+                                Slider(
+                                    value = cropX,
+                                    onValueChange = {
+                                        if (!adjustingSlider) { snapshot(); adjustingSlider = true }
+                                        cropX = it
+                                    },
+                                    onValueChangeFinished = { adjustingSlider = false }
+                                )
+                                Text("بؤرة الاقتصاص رأسيًا: ${(cropY * 100).toInt()}%")
+                                Slider(
+                                    value = cropY,
+                                    onValueChange = {
+                                        if (!adjustingSlider) { snapshot(); adjustingSlider = true }
+                                        cropY = it
+                                    },
+                                    onValueChangeFinished = { adjustingSlider = false }
                                 )
                             }
                         }
 
-                        // Caption overlay
-                        if (caption.isNotBlank()) {
-                            Text(
-                                caption,
-                                color = if (captionDark) Color.Black else Color.White,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontSize = (captionSize * 0.45f).sp,
+                        StudioToolTab.EXPORT -> {
+                            Text("إعدادات الدقة والتصدير", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text("أقصى دقة للصورة المصدرة:")
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf(1200 to "1200 (خفيف)", 2400 to "2400 (قياسي)", 3600 to "3600 (فائق)").forEach { (dim, label) ->
+                                    FilterChip(
+                                        selected = maxDimension == dim,
+                                        onClick = { snapshot(); maxDimension = dim },
+                                        label = { Text(label) }
+                                    )
+                                }
+                            }
+
+                            Text("جودة JPEG: $jpegQuality%")
+                            Slider(
+                                value = jpegQuality.toFloat(),
+                                onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; jpegQuality = it.toInt() },
+                                onValueChangeFinished = { adjustingSlider = false },
+                                valueRange = 70f..100f
+                            )
+
+                            Button(
+                                onClick = { editedOutput.launch("ProGalleryX-studio.jpg") },
+                                enabled = !busy,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(8.dp)
-                                    .align(Alignment.TopCenter)
-                                    .offset(y = (captionPosition * 220f).dp),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                maxLines = 2
-                            )
+                                    .height(52.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Save, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("حفظ وتصدير الصورة المعدلة", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
                         }
                     }
                 }
             }
 
-            // Filter Presets Section
-            Text("الفلاتر الجاهزة", style = MaterialTheme.typography.titleSmall)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                PhotoFilterPresets.all.forEach { preset ->
-                    FilterChip(
-                        selected = selectedPresetId == preset.id,
-                        onClick = {
-                            snapshot()
-                            selectedPresetId = preset.id
-                            applyState(PhotoFilterPresets.applyTo(currentAdjustments(), preset))
-                        },
-                        label = { Text(preset.displayName) },
-                        enabled = !busy
-                    )
-                }
-            }
-
-            // Undo / Redo / Reset controls
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = {
-                        val previous = undoStack.last()
-                        redoStack = (redoStack + currentAdjustments()).takeLast(30)
-                        undoStack = undoStack.dropLast(1)
-                        applyState(previous)
-                    },
-                    enabled = !busy && undoStack.isNotEmpty(),
-                    modifier = Modifier.weight(1f)
+            // Quick Save Button always visible at bottom if not in export tab
+            if (activeToolTab != StudioToolTab.EXPORT) {
+                Button(
+                    onClick = { editedOutput.launch("ProGalleryX-studio.jpg") },
+                    enabled = !busy,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("تراجع (${undoStack.size})")
+                    Icon(Icons.Default.Save, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("حفظ وتصدير الصورة", fontWeight = FontWeight.SemiBold)
                 }
-
-                OutlinedButton(
-                    onClick = {
-                        val next = redoStack.last()
-                        redoStack = redoStack.dropLast(1)
-                        undoStack = (undoStack + currentAdjustments()).takeLast(30)
-                        applyState(next)
-                    },
-                    enabled = !busy && redoStack.isNotEmpty(),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("إعادة (${redoStack.size})")
-                }
-
-                TextButton(
-                    onClick = {
-                        snapshot()
-                        applyState(PhotoFilterPresets.applyTo(currentAdjustments(), PhotoFilterPresets.ORIGINAL))
-                        rotation = 0; flipHorizontal = false; flipVertical = false
-                        cropRatio = 0f; cropX = 0.5f; cropY = 0.5f
-                        selectedPresetId = PhotoFilterPresets.ORIGINAL.id
-                    },
-                    enabled = !busy
-                ) {
-                    Text("إعادة الضبط")
-                }
-            }
-
-            // Transform Tools (Rotate & Flip)
-            Text("التحويل والتدوير", style = MaterialTheme.typography.titleSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { snapshot(); rotation = (rotation + 90) % 360 },
-                    enabled = !busy
-                ) { Text("تدوير 90° ($rotation°)") }
-
-                OutlinedButton(
-                    onClick = { snapshot(); flipHorizontal = !flipHorizontal },
-                    enabled = !busy
-                ) { Text(if (flipHorizontal) "إلغاء الانعكاس الأفقي" else "انعكاس أفقي") }
-
-                OutlinedButton(
-                    onClick = { snapshot(); flipVertical = !flipVertical },
-                    enabled = !busy
-                ) { Text(if (flipVertical) "إلغاء الانعكاس الرأسي" else "انعكاس رأسي") }
-            }
-
-            // Crop Ratios
-            Text("نسبة الاقتصاص", style = MaterialTheme.typography.titleSmall)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                listOf(
-                    "الأصل" to 0f,
-                    "1:1" to 1f,
-                    "4:3" to (4f / 3f),
-                    "16:9" to (16f / 9f),
-                    "3:4" to (3f / 4f),
-                    "9:16" to (9f / 16f)
-                ).forEach { (label, ratio) ->
-                    FilterChip(
-                        selected = cropRatio == ratio,
-                        onClick = { snapshot(); cropRatio = ratio },
-                        label = { Text(label) },
-                        enabled = !busy
-                    )
-                }
-            }
-
-            if (cropRatio != 0f) {
-                Text("بؤرة الاقتصاص أفقيًا: ${(cropX * 100).toInt()}%")
-                Slider(
-                    value = cropX,
-                    onValueChange = {
-                        if (!adjustingSlider) { snapshot(); adjustingSlider = true }
-                        cropX = it
-                    },
-                    onValueChangeFinished = { adjustingSlider = false },
-                    enabled = !busy
-                )
-                Text("بؤرة الاقتصاص رأسيًا: ${(cropY * 100).toInt()}%")
-                Slider(
-                    value = cropY,
-                    onValueChange = {
-                        if (!adjustingSlider) { snapshot(); adjustingSlider = true }
-                        cropY = it
-                    },
-                    onValueChangeFinished = { adjustingSlider = false },
-                    enabled = !busy
-                )
-            }
-
-            HorizontalDivider()
-
-            // Freehand Brush Mode
-            Text("الرسم بالفرشاة", style = MaterialTheme.typography.titleMedium)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = brushMode, onCheckedChange = { brushMode = it }, enabled = !busy)
-                Text("تفعيل الرسم المباشر فوق الصورة")
-            }
-            if (brushMode) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = brushDark, onCheckedChange = { brushDark = it }, enabled = !busy)
-                    Text("فرشاة داكنة (بدل الفاتحة)")
-                }
-                Text("سُمك الفرشاة: ${(brushWidth * 1000).toInt()}")
-                Slider(
-                    value = brushWidth,
-                    onValueChange = { brushWidth = it },
-                    valueRange = 0.003f..0.04f,
-                    enabled = !busy
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { snapshot(); brushStrokes = emptyList() },
-                        enabled = !busy && brushStrokes.isNotEmpty()
-                    ) {
-                        Text("مسح كل الرسومات (${brushStrokes.size})")
-                    }
-                }
-            }
-
-            HorizontalDivider()
-
-            // Text Layers
-            Text("طبقات النصوص (حتى 3)", style = MaterialTheme.typography.titleMedium)
-            Button(
-                onClick = {
-                    snapshot()
-                    textLayers = textLayers + PhotoTextLayer("", 0.5f, 0.3f + 0.2f * textLayers.size)
-                },
-                enabled = !busy && textLayers.size < 3
-            ) {
-                Text("إضافة طبقة نص جديدة")
-            }
-
-            textLayers.forEachIndexed { index, layer ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("طبقة نص ${index + 1}", style = MaterialTheme.typography.titleSmall)
-                            TextButton(
-                                onClick = {
-                                    snapshot()
-                                    textLayers = textLayers.filterIndexed { i, _ -> i != index }
-                                },
-                                enabled = !busy
-                            ) { Text("حذف") }
-                        }
-                        OutlinedTextField(
-                            value = layer.text,
-                            onValueChange = { value ->
-                                snapshot()
-                                textLayers = textLayers.toMutableList().also { it[index] = layer.copy(text = value.take(80)) }
-                            },
-                            label = { Text("النص") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !busy
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
-                                checked = layer.dark,
-                                onCheckedChange = { v ->
-                                    snapshot()
-                                    textLayers = textLayers.toMutableList().also { it[index] = layer.copy(dark = v) }
-                                },
-                                enabled = !busy
-                            )
-                            Text("لون داكن")
-                        }
-                    }
-                }
-            }
-
-            // Sliders for Light, Color & Tone
-            Text("تعديلات الإضاءة والألوان", style = MaterialTheme.typography.titleMedium)
-            Text("السطوع: ${brightness.toInt()}")
-            Slider(
-                value = brightness,
-                onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; brightness = it },
-                onValueChangeFinished = { adjustingSlider = false },
-                valueRange = -100f..100f
-            )
-
-            Text("التباين: ${(contrast * 100).toInt()}%")
-            Slider(
-                value = contrast,
-                onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; contrast = it },
-                onValueChangeFinished = { adjustingSlider = false },
-                valueRange = 0.5f..1.5f
-            )
-
-            Text("التشبع: ${(saturation * 100).toInt()}%")
-            Slider(
-                value = saturation,
-                onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; saturation = it },
-                onValueChangeFinished = { adjustingSlider = false },
-                valueRange = 0f..2f
-            )
-
-            Text("حرارة اللون: ${temperature.toInt()}")
-            Slider(
-                value = temperature,
-                onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; temperature = it },
-                onValueChangeFinished = { adjustingSlider = false },
-                valueRange = -100f..100f
-            )
-
-            Text("تدرج الصبغة: ${tint.toInt()}")
-            Slider(
-                value = tint,
-                onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; tint = it },
-                onValueChangeFinished = { adjustingSlider = false },
-                valueRange = -100f..100f
-            )
-
-            // Export Resolution & Quality
-            Text("إعدادات تصدير الصورة", style = MaterialTheme.typography.titleMedium)
-            Text("أقصى دقة (أطول ضلع بالبكسل)")
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(1200 to "1200 (خفيف)", 2400 to "2400 (قياسي)", 3600 to "3600 (فائق)").forEach { (dim, label) ->
-                    FilterChip(
-                        selected = maxDimension == dim,
-                        onClick = { snapshot(); maxDimension = dim },
-                        label = { Text(label) },
-                        enabled = !busy
-                    )
-                }
-            }
-
-            Text("جودة JPEG: $jpegQuality%")
-            Slider(
-                value = jpegQuality.toFloat(),
-                onValueChange = { if (!adjustingSlider) { snapshot(); adjustingSlider = true }; jpegQuality = it.toInt() },
-                onValueChangeFinished = { adjustingSlider = false },
-                valueRange = 70f..100f,
-                enabled = !busy
-            )
-
-            Button(
-                onClick = { editedOutput.launch("ProGalleryX-edited.jpg") },
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("تصدير وحفظ الصورة المعدلة")
             }
         }
+    }
+
+    // Modal Text Editor Dialog
+    if (showTextDialog) {
+        PhotoTextEditDialog(
+            initialLayer = editingTextLayer,
+            onDismiss = {
+                showTextDialog = false
+                editingTextLayer = null
+            },
+            onConfirm = { updatedLayer ->
+                snapshot()
+                if (editingTextLayer == null) {
+                    textLayers = textLayers + updatedLayer
+                    activeLayerId = updatedLayer.id
+                } else {
+                    textLayers = textLayers.map { if (it.id == updatedLayer.id) updatedLayer else it }
+                }
+                showTextDialog = false
+                editingTextLayer = null
+            },
+            onDelete = editingTextLayer?.let { layer ->
+                {
+                    snapshot()
+                    textLayers = textLayers.filterNot { it.id == layer.id }
+                    if (activeLayerId == layer.id) activeLayerId = null
+                    showTextDialog = false
+                    editingTextLayer = null
+                }
+            }
+        )
+    }
+
+    // Modal Sticker Picker Dialog
+    if (showStickerDialog) {
+        PhotoStickerPicker(
+            onDismiss = { showStickerDialog = false },
+            onSelectEmoji = { emoji ->
+                snapshot()
+                val newSticker = InteractiveStickerLayer(
+                    emoji = emoji,
+                    normalizedX = 0.5f,
+                    normalizedY = 0.5f
+                )
+                stickerLayers = stickerLayers + newSticker
+                activeLayerId = newSticker.id
+                showStickerDialog = false
+            },
+            onSelectShape = { shapeType, colorArgb ->
+                snapshot()
+                val newSticker = InteractiveStickerLayer(
+                    shapeType = shapeType,
+                    colorArgb = colorArgb,
+                    normalizedX = 0.5f,
+                    normalizedY = 0.5f
+                )
+                stickerLayers = stickerLayers + newSticker
+                activeLayerId = newSticker.id
+                showStickerDialog = false
+            }
+        )
     }
 }

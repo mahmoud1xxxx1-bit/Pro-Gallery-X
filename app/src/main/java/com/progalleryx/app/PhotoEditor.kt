@@ -40,7 +40,10 @@ data class PhotoAdjustments(
     val temperature: Float = 0f,
     val tint: Float = 0f,
     val textLayers: List<PhotoTextLayer> = emptyList(),
-    val brushStrokes: List<BrushStroke> = emptyList()
+    val brushStrokes: List<BrushStroke> = emptyList(),
+    val interactiveTextLayers: List<InteractiveTextLayer> = emptyList(),
+    val interactiveStickerLayers: List<InteractiveStickerLayer> = emptyList(),
+    val smoothBrushStrokes: List<SmoothBrushStroke> = emptyList()
 )
 
 /** Offline JPEG export. Source URI is read-only; destination must be a newly selected document. */
@@ -62,7 +65,29 @@ object PhotoEditor {
     suspend fun export(context: Context, source: Uri, destination: Uri, settings: PhotoAdjustments) =
         withContext(Dispatchers.IO) {
             require(source != destination) { "Original and output must be different" }
-            require(settings.brightness in -100f..100f && settings.contrast in 0.5f..1.5f && settings.saturation in 0f..2f && settings.rotation in listOf(0, 90, 180, 270) && settings.cropRatio in listOf(0f, 1f, 4f / 3f, 16f / 9f, 3f / 4f, 9f / 16f) && settings.jpegQuality in 70..100 && settings.caption.length <= 80 && settings.captionSize in 16..72 && settings.captionPosition in 0.1f..0.9f && settings.maxDimension in listOf(1200, 2400, 3600) && settings.cropX in 0f..1f && settings.cropY in 0f..1f && settings.temperature in -100f..100f && settings.tint in -100f..100f && settings.textLayers.size <= 3 && settings.textLayers.all { it.valid() } && settings.brushStrokes.size <= 100 && settings.brushStrokes.all { it.valid() })
+            require(
+                settings.brightness in -100f..100f &&
+                settings.contrast in 0.5f..1.5f &&
+                settings.saturation in 0f..2f &&
+                settings.rotation in listOf(0, 90, 180, 270) &&
+                settings.cropRatio in listOf(0f, 1f, 4f / 3f, 16f / 9f, 3f / 4f, 9f / 16f) &&
+                settings.jpegQuality in 70..100 &&
+                settings.caption.length <= 80 &&
+                settings.captionSize in 16..72 &&
+                settings.captionPosition in 0.1f..0.9f &&
+                settings.maxDimension in listOf(1200, 2400, 3600) &&
+                settings.cropX in 0f..1f &&
+                settings.cropY in 0f..1f &&
+                settings.temperature in -100f..100f &&
+                settings.tint in -100f..100f &&
+                settings.textLayers.size <= 3 &&
+                settings.textLayers.all { it.valid() } &&
+                settings.brushStrokes.size <= 100 &&
+                settings.brushStrokes.all { it.valid() } &&
+                settings.interactiveTextLayers.size <= LayerTransformRules.MAX_LAYERS_COUNT &&
+                settings.interactiveStickerLayers.size <= LayerTransformRules.MAX_LAYERS_COUNT &&
+                settings.smoothBrushStrokes.size <= 200
+            )
             val orientation = runCatching {
                 context.contentResolver.openInputStream(source)?.use {
                     ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
@@ -110,34 +135,18 @@ object PhotoEditor {
                     Canvas(output).drawBitmap(transformed, -crop.left.toFloat(), -crop.top.toFloat(), Paint(Paint.FILTER_BITMAP_FLAG).apply {
                         colorFilter = ColorMatrixColorFilter(colors)
                     })
-                    if (settings.caption.isNotBlank()) {
-                        val scale = output.width / 1000f
-                        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            color = if (settings.captionDark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-                            textAlign = Paint.Align.CENTER
-                            textSize = settings.captionSize * scale.coerceAtLeast(0.5f)
-                            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
-                            setShadowLayer(2.5f * scale.coerceAtLeast(0.5f), 1f, 1f, if (settings.captionDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
+
+                    val canvas = Canvas(output)
+
+                    // 1. Draw Smooth Brush Strokes (rich ARGB)
+                    if (settings.smoothBrushStrokes.isNotEmpty()) {
+                        settings.smoothBrushStrokes.forEach { stroke ->
+                            drawSmoothBrushStroke(canvas, stroke, output.width, output.height)
                         }
-                        val baseline = (output.height * settings.captionPosition).coerceIn(paint.textSize, output.height - paint.textSize * 0.2f)
-                        Canvas(output).drawText(settings.caption, output.width / 2f, baseline, paint)
                     }
-                    for (layer in settings.textLayers) {
-                        if (layer.text.isBlank()) continue
-                        val scale = (output.width / 1000f).coerceAtLeast(0.5f)
-                        val layerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            color = if (layer.dark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-                            textAlign = Paint.Align.CENTER
-                            textSize = layer.size * scale
-                            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
-                            setShadowLayer(2.5f * scale, 1f, 1f, if (layer.dark) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
-                        }
-                        val x = output.width * layer.x
-                        val y = (output.height * layer.y).coerceIn(layerPaint.textSize, output.height - layerPaint.textSize * 0.2f)
-                        Canvas(output).drawText(layer.text, x, y, layerPaint)
-                    }
+
+                    // 2. Draw Legacy Brush Strokes (backward compatibility)
                     if (settings.brushStrokes.isNotEmpty()) {
-                        val canvas = Canvas(output)
                         settings.brushStrokes.forEach { stroke ->
                             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                 color = if (stroke.dark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
@@ -157,6 +166,51 @@ object PhotoEditor {
                             } else canvas.drawPath(path, paint)
                         }
                     }
+
+                    // 3. Draw Interactive Stickers & Shapes
+                    if (settings.interactiveStickerLayers.isNotEmpty()) {
+                        settings.interactiveStickerLayers.forEach { sticker ->
+                            drawStickerOnCanvas(canvas, sticker, output.width, output.height)
+                        }
+                    }
+
+                    // 4. Draw Legacy Captions (backward compatibility)
+                    if (settings.caption.isNotBlank()) {
+                        val scale = output.width / 1000f
+                        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            color = if (settings.captionDark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                            textAlign = Paint.Align.CENTER
+                            textSize = settings.captionSize * scale.coerceAtLeast(0.5f)
+                            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+                            setShadowLayer(2.5f * scale.coerceAtLeast(0.5f), 1f, 1f, if (settings.captionDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
+                        }
+                        val baseline = (output.height * settings.captionPosition).coerceIn(paint.textSize, output.height - paint.textSize * 0.2f)
+                        canvas.drawText(settings.caption, output.width / 2f, baseline, paint)
+                    }
+
+                    // 5. Draw Legacy Text Layers (backward compatibility)
+                    for (layer in settings.textLayers) {
+                        if (layer.text.isBlank()) continue
+                        val scale = (output.width / 1000f).coerceAtLeast(0.5f)
+                        val layerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            color = if (layer.dark) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                            textAlign = Paint.Align.CENTER
+                            textSize = layer.size * scale
+                            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+                            setShadowLayer(2.5f * scale, 1f, 1f, if (layer.dark) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
+                        }
+                        val x = output.width * layer.x
+                        val y = (output.height * layer.y).coerceIn(layerPaint.textSize, output.height - layerPaint.textSize * 0.2f)
+                        canvas.drawText(layer.text, x, y, layerPaint)
+                    }
+
+                    // 6. Draw Interactive Text Layers (rich typography, background boxes, rotation)
+                    if (settings.interactiveTextLayers.isNotEmpty()) {
+                        settings.interactiveTextLayers.forEach { layer ->
+                            drawInteractiveTextOnCanvas(canvas, layer, output.width, output.height)
+                        }
+                    }
+
                     val temp = File.createTempFile("pgx_photo_", ".jpg", context.cacheDir)
                     try {
                         temp.outputStream().use { stream ->
@@ -177,4 +231,195 @@ object PhotoEditor {
                 } finally { if (upright !== bitmap) upright.recycle() }
             } finally { bitmap.recycle() }
         }
+
+    private fun drawSmoothBrushStroke(canvas: Canvas, stroke: SmoothBrushStroke, bitmapWidth: Int, bitmapHeight: Int) {
+        if (stroke.points.isEmpty()) return
+        val strokeColor = stroke.colorArgb.toInt()
+        val strokeWidthPx = LayerTransformRules.calculateExportStrokeWidth(stroke.strokeWidthNormalized, bitmapWidth)
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = strokeColor
+            style = Paint.Style.STROKE
+            this.strokeWidth = strokeWidthPx
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+
+        if (stroke.points.size == 1) {
+            val pt = stroke.points[0]
+            canvas.drawCircle(pt.x * bitmapWidth, pt.y * bitmapHeight, strokeWidthPx / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = strokeColor
+                style = Paint.Style.FILL
+            })
+        } else {
+            val path = android.graphics.Path()
+            stroke.points.forEachIndexed { idx, pt ->
+                val px = pt.x * bitmapWidth
+                val py = pt.y * bitmapHeight
+                if (idx == 0) path.moveTo(px, py) else path.lineTo(px, py)
+            }
+            canvas.drawPath(path, paint)
+        }
+    }
+
+    private fun drawStickerOnCanvas(canvas: Canvas, sticker: InteractiveStickerLayer, bitmapWidth: Int, bitmapHeight: Int) {
+        val cx = sticker.normalizedX * bitmapWidth
+        val cy = sticker.normalizedY * bitmapHeight
+        val baseSize = bitmapWidth * 0.12f * sticker.scale
+
+        canvas.save()
+        canvas.translate(cx, cy)
+        canvas.rotate(sticker.rotationDegrees)
+
+        if (sticker.emoji.isNotBlank()) {
+            val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                textSize = baseSize
+                textAlign = Paint.Align.CENTER
+            }
+            val yOffset = (textPaint.descent() + textPaint.ascent()) / 2f
+            canvas.drawText(sticker.emoji, 0f, -yOffset, textPaint)
+        } else if (sticker.shapeType != null) {
+            val shapePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = ((sticker.opacity * 255).toInt().coerceIn(0, 255) shl 24) or (sticker.colorArgb.toInt() and 0x00FFFFFF)
+            }
+            val half = baseSize / 2f
+            when (sticker.shapeType) {
+                ShapeType.CIRCLE -> {
+                    canvas.drawCircle(0f, 0f, half, shapePaint)
+                }
+                ShapeType.RECTANGLE -> {
+                    canvas.drawRoundRect(android.graphics.RectF(-half, -half, half, half), baseSize * 0.15f, baseSize * 0.15f, shapePaint)
+                }
+                ShapeType.HEART -> {
+                    val path = android.graphics.Path().apply {
+                        val w = baseSize
+                        moveTo(0f, half * 0.7f)
+                        cubicTo(-w * 0.4f, half * 0.1f, -half, -half * 0.5f, -half * 0.5f, -half * 0.8f)
+                        cubicTo(-w * 0.05f, -half * 1.0f, 0f, -half * 0.6f, 0f, -half * 0.5f)
+                        cubicTo(0f, -half * 0.6f, w * 0.05f, -half * 1.0f, half * 0.5f, -half * 0.8f)
+                        cubicTo(half, -half * 0.5f, w * 0.4f, half * 0.1f, 0f, half * 0.7f)
+                        close()
+                    }
+                    canvas.drawPath(path, shapePaint)
+                }
+                ShapeType.STAR -> {
+                    val path = android.graphics.Path()
+                    val outerR = half
+                    val innerR = outerR * 0.4f
+                    for (i in 0 until 10) {
+                        val r = if (i % 2 == 0) outerR else innerR
+                        val angle = Math.toRadians((i * 36 - 90).toDouble())
+                        val x = (r * Math.cos(angle)).toFloat()
+                        val y = (r * Math.sin(angle)).toFloat()
+                        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    }
+                    path.close()
+                    canvas.drawPath(path, shapePaint)
+                }
+                ShapeType.ARROW -> {
+                    val path = android.graphics.Path().apply {
+                        moveTo(-half * 0.6f, -half * 0.2f)
+                        lineTo(0f, -half * 0.2f)
+                        lineTo(0f, -half * 0.6f)
+                        lineTo(half * 0.8f, 0f)
+                        lineTo(0f, half * 0.6f)
+                        lineTo(0f, half * 0.2f)
+                        lineTo(-half * 0.6f, half * 0.2f)
+                        close()
+                    }
+                    canvas.drawPath(path, shapePaint)
+                }
+            }
+        }
+        canvas.restore()
+    }
+
+    private fun drawInteractiveTextOnCanvas(canvas: Canvas, layer: InteractiveTextLayer, bitmapWidth: Int, bitmapHeight: Int) {
+        if (layer.text.isBlank()) return
+        val fontSizePx = LayerTransformRules.calculateExportFontSize(layer.fontSizeSp, layer.scale, bitmapWidth)
+        val typeface = when (layer.fontStyle) {
+            TextFontStyle.DEFAULT -> android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            TextFontStyle.SERIF -> android.graphics.Typeface.create("serif", android.graphics.Typeface.NORMAL)
+            TextFontStyle.MONOSPACE -> android.graphics.Typeface.create("monospace", android.graphics.Typeface.NORMAL)
+            TextFontStyle.BOLD_HEADING -> android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+            TextFontStyle.CASUAL_HANDWRITING -> android.graphics.Typeface.create("cursive", android.graphics.Typeface.NORMAL)
+        }
+
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ((layer.opacity * 255).toInt().coerceIn(0, 255) shl 24) or (layer.colorArgb.toInt() and 0x00FFFFFF)
+            this.textSize = fontSizePx
+            this.typeface = typeface
+            textAlign = when (layer.textAlign) {
+                TextAlignment.START -> Paint.Align.LEFT
+                TextAlignment.CENTER -> Paint.Align.CENTER
+                TextAlignment.END -> Paint.Align.RIGHT
+            }
+            if (layer.hasShadow) {
+                setShadowLayer(fontSizePx * 0.1f, 2f, 2f, android.graphics.Color.BLACK)
+            }
+        }
+
+        val lines = layer.text.split("\n")
+        val fontMetrics = textPaint.fontMetrics
+        val lineHeight = fontMetrics.descent - fontMetrics.ascent + fontMetrics.leading
+        val totalHeight = lines.size * lineHeight
+        var maxLineWidth = 0f
+        lines.forEach { line ->
+            val w = textPaint.measureText(line)
+            if (w > maxLineWidth) maxLineWidth = w
+        }
+
+        val cx = layer.normalizedX * bitmapWidth
+        val cy = layer.normalizedY * bitmapHeight
+
+        canvas.save()
+        canvas.translate(cx, cy)
+        canvas.rotate(layer.rotationDegrees)
+
+        val padX = fontSizePx * 0.45f
+        val padY = fontSizePx * 0.25f
+        val halfW = (maxLineWidth / 2f) + padX
+        val halfH = (totalHeight / 2f) + padY
+        val bgRect = android.graphics.RectF(-halfW, -halfH, halfW, halfH)
+
+        when (layer.backgroundStyle) {
+            TextBackgroundStyle.FILLED_BOX -> {
+                val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.FILL
+                    color = ((layer.opacity * 255).toInt().coerceIn(0, 255) shl 24) or (layer.backgroundColorArgb.toInt() and 0x00FFFFFF)
+                }
+                canvas.drawRoundRect(bgRect, fontSizePx * 0.35f, fontSizePx * 0.35f, bgPaint)
+            }
+            TextBackgroundStyle.SEMI_TRANSPARENT -> {
+                val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.FILL
+                    color = ((0.55f * layer.opacity * 255).toInt().coerceIn(0, 255) shl 24) or 0x00121212
+                }
+                canvas.drawRoundRect(bgRect, fontSizePx * 0.35f, fontSizePx * 0.35f, bgPaint)
+            }
+            TextBackgroundStyle.OUTLINE -> {
+                val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    strokeWidth = (fontSizePx * 0.08f).coerceAtLeast(2.5f)
+                    color = textPaint.color
+                }
+                canvas.drawRoundRect(bgRect, fontSizePx * 0.35f, fontSizePx * 0.35f, outlinePaint)
+            }
+            TextBackgroundStyle.TRANSPARENT -> { /* No background box */ }
+        }
+
+        var lineY = -halfH + padY - fontMetrics.ascent
+        lines.forEach { line ->
+            val lineX = when (layer.textAlign) {
+                TextAlignment.START -> -halfW + padX
+                TextAlignment.CENTER -> 0f
+                TextAlignment.END -> halfW - padX
+            }
+            canvas.drawText(line, lineX, lineY, textPaint)
+            lineY += lineHeight
+        }
+
+        canvas.restore()
+    }
 }
