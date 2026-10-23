@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
@@ -337,8 +338,8 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 TextButton(onClick = { snapshot(); brightness = 0f; contrast = 1.08f; saturation = 0f }, enabled = !busy) { Text("أبيض وأسود") }
             }
             Text("نسبة القص", style = MaterialTheme.typography.titleSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf("الأصل" to 0f, "1:1" to 1f, "4:3" to (4f / 3f), "16:9" to (16f / 9f)).forEach { (label, ratio) ->
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState())) {
+                listOf("الأصل" to 0f, "1:1" to 1f, "4:3" to (4f / 3f), "16:9" to (16f / 9f), "3:4" to (3f / 4f), "9:16" to (9f / 16f)).forEach { (label, ratio) ->
                     FilterChip(selected = cropRatio == ratio, onClick = { snapshot(); cropRatio = ratio },
                         label = { Text(label) }, enabled = !busy)
                 }
