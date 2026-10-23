@@ -4,6 +4,9 @@ import android.content.Context
 import android.net.Uri
 import android.media.MediaMetadataRetriever
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Effects
+import androidx.media3.common.audio.SonicAudioProcessor
+import androidx.media3.effect.SpeedChangeEffect
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
@@ -36,9 +39,10 @@ object VideoEditor {
             if (secondHalf) duration else splitMs, muteAudio)
     }
 
-    suspend fun trimToDocument(context: Context, input: Uri, output: Uri, startMs: Long, endMs: Long, muteAudio: Boolean = false) {
+    suspend fun trimToDocument(context: Context, input: Uri, output: Uri, startMs: Long, endMs: Long, muteAudio: Boolean = false, speed: Float = 1f) {
         require(startMs >= 0 && endMs > startMs && endMs - startMs >= 500) { "Invalid trim window" }
         require(input != output) { "Source and output must differ" }
+        require(VideoSpeedRules.valid(speed)) { "Unsupported video speed" }
         withContext(Dispatchers.IO) {
             val metadata = MediaMetadataRetriever()
             try {
@@ -61,7 +65,9 @@ object VideoEditor {
                                 .setEndPositionMs(endMs)
                                 .build()
                         ).build()
-                    val editor = EditedMediaItem.Builder(clip).setRemoveAudio(muteAudio).build()
+                    val effects = if (speed == 1f) Effects(emptyList(), emptyList())
+                    else Effects(listOf(SonicAudioProcessor().apply { setSpeed(speed) }), listOf(SpeedChangeEffect(speed)))
+                    val editor = EditedMediaItem.Builder(clip).setRemoveAudio(muteAudio).setEffects(effects).build()
                     val transformer = Transformer.Builder(context)
                         .addListener(object : Transformer.Listener {
                             override fun onCompleted(composition: androidx.media3.transformer.Composition, exportResult: ExportResult) {
