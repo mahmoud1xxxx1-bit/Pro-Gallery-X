@@ -6,6 +6,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -69,6 +74,9 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     var endSecond by remember { mutableFloatStateOf(10f) }
     var videoDuration by remember { mutableFloatStateOf(0f) }
     var videoInfoValid by remember { mutableStateOf(false) }
+    var storyboardFrames by remember { mutableStateOf<List<android.graphics.Bitmap>>(emptyList()) }
+    var storyboardBusy by remember { mutableStateOf(false) }
+    var requestedSeekMs by remember { mutableLongStateOf(-1L) }
     val videoOutput = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")) { target ->
         val source = selectedVideo
         if (!busy && source != null && target != null) {
@@ -144,6 +152,16 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                 message = "لم أتمكن من قراءة مدة الفيديو. اختر مقطعًا صالحًا."
             } finally { retriever.release() }
         }
+    }
+    LaunchedEffect(selectedVideo) {
+        storyboardFrames = emptyList()
+        val uri = selectedVideo ?: return@LaunchedEffect
+        storyboardBusy = true
+        try {
+            storyboardFrames = VideoStoryboard.generate(context, uri)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { storyboardFrames = emptyList() }
+        finally { storyboardBusy = false }
     }
     var editSource by remember { mutableStateOf<Uri?>(null) }
     var brightness by remember { mutableFloatStateOf(0f) }
@@ -509,11 +527,33 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
                         setOnPreparedListener { player -> player.isLooping = false }
                         setOnClickListener { if (isPlaying) pause() else start() }
                     } },
-                    update = { view -> if (view.tag != selectedVideo) { view.setVideoURI(selectedVideo); view.tag = selectedVideo } },
+                    update = { view ->
+                        if (view.tag != selectedVideo) { view.setVideoURI(selectedVideo); view.tag = selectedVideo }
+                        if (requestedSeekMs >= 0) { view.seekTo(requestedSeekMs.toInt()); requestedSeekMs = -1L }
+                    },
                     modifier = Modifier.fillMaxWidth().height(220.dp)
                 )
             }
-            Text("يمكن تشغيل المعاينة بالضغط على الفيديو. المعاينة لا تطبق القص قبل التصدير.")
+            Text("يمكن تشغيل المعاينة بالضغط على الفيديو؛ حدد الإطار في الشريط أدناه للانتقال إليه.")
+            if (storyboardBusy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            if (storyboardFrames.isNotEmpty() && videoInfoValid) {
+                Text("شريط لقطات الفيديو", style = MaterialTheme.typography.titleMedium)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    itemsIndexed(storyboardFrames) { index, bitmap ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            AsyncImage(model = bitmap, contentDescription = "إطار فيديو ${index + 1}",
+                                modifier = Modifier.size(94.dp, 64.dp).clickable {
+                                    val seek = videoDuration * 1000f * index / (storyboardFrames.size - 1)
+                                    requestedSeekMs = seek.toLong()
+                                    startSecond = (seek / 1000f).coerceAtMost((endSecond - 0.5f).coerceAtLeast(0f))
+                                })
+                            Text("${(videoDuration * index / (storyboardFrames.size - 1)).toInt()}ث",
+                                style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+
             if (videoInfoValid) {
             Text("بداية المقطع: ${startSecond.toInt()} ثانية")
             Slider(value = startSecond, onValueChange = { startSecond = it.coerceAtMost(endSecond - 0.5f) }, valueRange = 0f..(videoDuration - 0.5f).coerceAtLeast(0.5f))
