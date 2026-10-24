@@ -1,7 +1,7 @@
 name: Android CI
 on:
   push:
-    branches: [main, 'ci/**']
+    branches: [main, 'ci/**', 'fix/**', 'feat/**']
   pull_request:
   workflow_dispatch:
 jobs:
@@ -22,23 +22,34 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
+      - name: Verify versioning properties
+        run: |
+          test -f version.properties
+          grep -q "VERSION_BUILD=" version.properties
+          grep -q "VERSION_NAME=" version.properties
       - name: Run unit tests
         run: gradle --no-daemon --stacktrace :app:testDebugUnitTest
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace :app:assembleDebug
       - name: Verify APK integrity, signature and package metadata
         run: |
-          APK=app/build/outputs/apk/debug/app-debug.apk
+          DIST_DIR=app/build/outputs/apk/distribution
+          test -d "$DIST_DIR"
+          APK=$(ls -1 $DIST_DIR/ProGalleryX-*-debug.apk | head -n 1)
           test -s "$APK"
+          echo "Verifying $APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | tee apk-badging.txt
           grep -q "package: name='com.progalleryx.app'" apk-badging.txt
           grep -q "sdkVersion:'26'" apk-badging.txt
+          grep -q "targetSdkVersion:'36'" apk-badging.txt
           unzip -t "$APK" | tail -1
-      - name: Upload APK
+          sha256sum "$APK" > "$DIST_DIR/SHA256SUMS"
+          cat "$DIST_DIR/SHA256SUMS"
+      - name: Upload Versioned Distribution APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Pro-Gallery-X-debug
-          path: app/build/outputs/apk/debug/*.apk
-
+          name: ProGalleryX-Debug-Artifacts
+          path: |
+            app/build/outputs/apk/distribution/*

@@ -74,6 +74,7 @@ fun ProGalleryApp(
 
     var currentThemeMode by remember { mutableStateOf(preferences.themeMode) }
     var currentLanguage by remember { mutableStateOf(preferences.language) }
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     val systemLocaleIsArabic = remember {
         Locale.getDefault().language.equals("ar", ignoreCase = true)
@@ -376,6 +377,7 @@ fun ProGalleryApp(
                                         currentLanguage = next
                                         preferences.language = next
                                     },
+                                    onAboutClick = { showAboutDialog = true },
                                     onRefresh = { if (permitted) vm.reload() }
                                 )
                             },
@@ -686,6 +688,13 @@ fun ProGalleryApp(
                         }
                     )
                 }
+
+                if (showAboutDialog) {
+                    AboutAppDialog(
+                        isArabic = isArabic,
+                        onDismiss = { showAboutDialog = false }
+                    )
+                }
             }
         }
     }
@@ -710,6 +719,7 @@ private fun GalleryTopBar(
     onSelectAll: () -> Unit,
     onThemeToggle: () -> Unit,
     onLanguageToggle: () -> Unit,
+    onAboutClick: () -> Unit,
     onRefresh: () -> Unit
 ) {
     if (isSelectionMode) {
@@ -818,6 +828,11 @@ private fun GalleryTopBar(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
+                }
+
+                // About / Diagnostics Dialog
+                IconButton(onClick = onAboutClick) {
+                    Icon(Icons.Outlined.Info, contentDescription = "About Pro Gallery X", tint = MaterialTheme.colorScheme.primary)
                 }
 
                 // Refresh Button
