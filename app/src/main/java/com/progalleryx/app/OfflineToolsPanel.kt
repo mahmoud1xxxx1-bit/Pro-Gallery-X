@@ -120,7 +120,10 @@ fun OfflineToolsPanel(onClose: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            // Image/Video editors own their scrolling content. Nesting them in
+            // an unbounded vertical scroll causes Compose to crash at measure.
+            // PDF and duplicate tools still need a scrollable container.
+            .then(if (selectedSection >= 2) Modifier.verticalScroll(rememberScrollState()) else Modifier)
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
