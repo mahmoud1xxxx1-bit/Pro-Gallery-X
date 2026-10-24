@@ -1,5 +1,9 @@
+import java.io.File
 import java.io.FileInputStream
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 import java.util.Properties
+import java.util.concurrent.TimeUnit
 
 plugins {
     id("com.android.application")
@@ -14,11 +18,30 @@ val versionProps = Properties().apply {
     }
 }
 
-val appVersionCode = versionProps.getProperty("VERSION_BUILD", "20002").toInt()
+val appVersionCode = versionProps.getProperty("VERSION_BUILD", "20003").toInt()
 val appVersionName = versionProps.getProperty("VERSION_NAME", "2.0.0-rc2")
 val appChannel = versionProps.getProperty("VERSION_CHANNEL", "rc")
-val gitSha = versionProps.getProperty("GIT_COMMIT_SHA", "6c0b403")
-val buildTimestamp = versionProps.getProperty("BUILD_TIME", "2026-10-24T21:40:00Z")
+
+fun resolveGitSha(projectDir: File): String {
+    val ciSha = System.getenv("GITHUB_SHA")
+    if (!ciSha.isNullOrBlank()) {
+        return ciSha.take(7)
+    }
+    return try {
+        val process = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+            .directory(projectDir)
+            .redirectErrorStream(true)
+            .start()
+        val text = process.inputStream.bufferedReader().readText().trim()
+        val finished = process.waitFor(3, TimeUnit.SECONDS)
+        if (finished && process.exitValue() == 0 && text.isNotBlank()) text else "unknown"
+    } catch (_: Exception) {
+        "unknown"
+    }
+}
+
+val dynamicGitSha = resolveGitSha(rootProject.projectDir)
+val dynamicBuildTimestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now())
 
 android {
     namespace = "com.progalleryx.app"
@@ -32,8 +55,8 @@ android {
         versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "GIT_COMMIT_SHA", "\"$gitSha\"")
-        buildConfigField("String", "BUILD_TIME", "\"$buildTimestamp\"")
+        buildConfigField("String", "GIT_COMMIT_SHA", "\"$dynamicGitSha\"")
+        buildConfigField("String", "BUILD_TIME", "\"$dynamicBuildTimestamp\"")
         buildConfigField("String", "RELEASE_CHANNEL", "\"$appChannel\"")
         buildConfigField("String", "EXPECTED_SIGNING_SHA256", "\"c1ea4285c43ccc6da990b93e9a323494609aaa68dbe2d1f500c24c3d6956c1f6\"")
     }
@@ -42,6 +65,13 @@ android {
         getByName("debug") {
             enableV1Signing = true
             enableV2Signing = true
+            val customKeystore = System.getenv("KEYSTORE_FILE_PATH")?.let { file(it) }
+            if (customKeystore != null && customKeystore.exists()) {
+                storeFile = customKeystore
+                storePassword = System.getenv("KEYSTORE_STORE_PASSWORD") ?: "android"
+                keyAlias = System.getenv("KEYSTORE_KEY_ALIAS") ?: "androiddebugkey"
+                keyPassword = System.getenv("KEYSTORE_KEY_PASSWORD") ?: "android"
+            }
         }
     }
 
@@ -78,7 +108,7 @@ afterEvaluate {
     tasks.findByName("assembleDebug")?.doLast {
         val src = file("build/outputs/apk/debug/app-debug.apk")
         val dstDir = file("build/outputs/apk/distribution")
-        val dst = file("build/outputs/apk/distribution/ProGalleryX-$appVersionName-$appVersionCode-$gitSha-debug.apk")
+        val dst = file("build/outputs/apk/distribution/ProGalleryX-$appVersionName-$appVersionCode-$dynamicGitSha-debug.apk")
         if (src.exists()) {
             dstDir.mkdirs()
             src.copyTo(dst, overwrite = true)

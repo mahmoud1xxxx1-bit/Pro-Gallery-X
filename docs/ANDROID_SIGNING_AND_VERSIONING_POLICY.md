@@ -1,6 +1,6 @@
 # Pro Gallery X — Android Signing and Versioning Policy
 **Scope:** Engineering Standards, CI/CD Pipeline, Release Engineering  
-**Version:** 2.0  
+**Version:** 2.1  
 **Status:** Mandatory Active Policy  
 
 ---
@@ -27,88 +27,80 @@ All non-Play Store distribution APKs (GitHub Releases, QA builds, internal testi
 - **Certificate SHA-1 Digest:**  
   `ba784da0ffe35d88a42ca8ab757bf2a5d6279ba9`
 
-### 2.3 Prohibition of Ephemeral CI Keystores
-- **Rule:** CI/CD runners (e.g. GitHub Actions) MUST NOT distribute APKs to end-users that were signed using randomly generated, runner-ephemeral keystores.
-- **Enforcement:** If a CI workflow publishes artifacts intended for user device installation, it must utilize a secure repository secret (`DEBUG_KEYSTORE_BASE64`) matching the canonical certificate fingerprint. Any artifact carrying a rogue or ephemeral key must be tagged strictly as `ci-test-only` and never uploaded to GitHub Releases.
+### 2.3 Protection of Canonical Keystore (No Keystore in Git)
+- **Zero Keystore in Repository Rule:** Binary keystores (`.keystore`, `.jks`) are strictly forbidden from being committed into the Git repository to preserve security hygiene.
+- **GitHub Secrets Storage:** The canonical debug keystore is securely stored as an encrypted repository secret (`SIGNING_KEYSTORE_BASE64`) in GitHub Actions.
+- **Runner Decryption:** At workflow startup, GitHub Actions decodes the secret into the runner's isolated keystore path (`~/.android/debug.keystore`), guaranteeing every CI build signs with the canonical key.
+
+### 2.4 Mandatory CI Signing Quality Gate
+The CI workflow ([`.github/workflows/android.yml`](file:///C:/Users/loved/mmss/.github/workflows/android.yml)) strictly enforces this fingerprint on every pull request and push:
+```bash
+EXPECTED_SHA256="c1ea4285c43ccc6da990b93e9a323494609aaa68dbe2d1f500c24c3d6956c1f6"
+ACTUAL_SHA256=$(grep "Signer #1 certificate SHA-256 digest:" apk-certs.txt | awk '{print $6}')
+if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+  echo "::error::CRITICAL SIGNING ERROR: APK certificate does not match canonical project key!"
+  exit 1
+fi
+```
+Any build signed with an ephemeral or rogue key is rejected and blocked from publication.
 
 ---
 
-## 3. Versioning Scheme and Increment Policy
+## 3. Dynamic Versioning & Build Telemetry
 
 ### 3.1 Centralized Version Definition
-Project versioning is governed strictly by [`version.properties`](file:///C:/Users/loved/mmss/version.properties):
+Project versioning is governed by [`version.properties`](file:///C:/Users/loved/mmss/version.properties):
 
 ```properties
 VERSION_MAJOR=2
 VERSION_MINOR=0
 VERSION_PATCH=0
-VERSION_BUILD=20002
+VERSION_BUILD=20003
 VERSION_CHANNEL=rc
 VERSION_NAME=2.0.0-rc2
-GIT_COMMIT_SHA=6c0b403
 ```
 
-### 3.2 `versionCode` Formula and Monotonicity
-The `versionCode` is a strictly positive, monotonically increasing 32-bit integer. It MUST follow the formula:
+### 3.2 Dynamic Git SHA and Build Timestamp
+Hardcoding of Git commits or timestamps is strictly prohibited. `build.gradle.kts` dynamically computes them at build time:
+- **Git Commit SHA:** Automatically queried from `GITHUB_SHA` (on CI) or via `git rev-parse --short HEAD` (local).
+- **Build Timestamp:** Generated via `DateTimeFormatter.ISO_INSTANT.format(Instant.now())`.
+- **In-App Exposure:** Embedded into `BuildConfig` (`GIT_COMMIT_SHA`, `BUILD_TIME`) and surfaced via the top-bar `AboutAppDialog`.
+
+### 3.3 `versionCode` Formula and Monotonicity
+The `versionCode` is a strictly positive, monotonically increasing 32-bit integer:
 $$\text{versionCode} = (\text{MAJOR} \times 10000) + (\text{MINOR} \times 100) + \text{PATCH} + \text{CHANNEL\_OFFSET}$$
 
-- Major Release 2.0.0 RC2: $\text{versionCode} = 20002$
-- Every subsequent PR, build, or patch MUST increment `VERSION_BUILD`.
-- **Zero Stagnation Rule:** A PR or release candidate with a stagnant `versionCode` (such as `1`) will be rejected by CI pre-merge checks.
-
-### 3.3 `versionName` Conventions
-Format: `<major>.<minor>.<patch>[-<channel>]`
-- Alpha builds: `2.0.0-alpha1`
-- Beta builds: `2.0.0-beta1`
-- Release candidates: `2.0.0-rc1`, `2.0.0-rc2`
-- Stable releases: `2.0.0`
+- Build 20003 represents Release Candidate 2.0.0-rc2.
+- Monotonicity prevents version downgrade and ensures proper package manager upgrade behavior.
 
 ---
 
 ## 4. Standardized Distribution Naming Specification
 
-All output APK assets distributed on GitHub Releases or via direct links MUST adhere to the following naming convention:
+All output APK assets distributed on GitHub Releases or via direct links MUST adhere to the naming convention:
 ```
 ProGalleryX-<versionName>-<versionCode>-<gitCommitSha>-<buildType>.apk
 ```
-**Example:**  
-`ProGalleryX-2.0.0-rc2-20002-6c0b403-debug.apk`
-
-Generic names such as `app-debug.apk` are strictly forbidden for distribution assets to prevent browser file collisions (`app-debug (1).apk`) on user devices.
+**Current Release Asset:**  
+`ProGalleryX-2.0.0-rc2-20003-ffa7eb8-debug.apk`
 
 ---
 
-## 5. User Migration & Clean Installation Guide (Samsung Devices)
+## 5. User Upgrade & Installation Protocol (Samsung Devices)
 
-If a user previously encountered `INSTALL_FAILED_UPDATE_INCOMPATIBLE` or has lingering ghost installations from early testing, follow this exact recovery protocol on Samsung Galaxy devices (M31, S-series, A-series):
+### Standard In-Place Upgrade (Recommended)
+Because the new APK carries the exact canonical certificate matching previous official GitHub releases, **NO UNINSTALLATION OR DATA DELETION IS REQUIRED**:
+1. Download the new APK: `ProGalleryX-2.0.0-rc2-20003-ffa7eb8-debug.apk`.
+2. Tap the downloaded file in your browser or My Files.
+3. Tap **Update (تحديث)**.
+4. The system updates the app in-place. All photos, albums, favorites, and preferences remain 100% intact.
 
-### Step 1: Check Standard Profile Uninstall
-1. Go to **Settings (الضبط)** -> **Apps (التطبيقات)**.
-2. Search for `Pro Gallery X`.
-3. If present, tap **Uninstall (إلغاء التثبيت)**.
-4. If a dialog asks *"Keep app data?" (الاحتفاظ ببيانات التطبيق؟)*, **UNCHECK** it to ensure clean signature removal.
-
-### Step 2: Check Samsung Secure Folder (المجلد الآمن)
-If the device has Secure Folder enabled:
-1. Open **Secure Folder (المجلد الآمن)**.
-2. Look for `Pro Gallery X` in the Secure Folder apps list.
-3. If present, tap and hold -> **Uninstall (إلغاء التثبيت)**.
-4. *Explanation:* Because Samsung Knox isolates Secure Folder as a separate user space (`User 150`), an app existing inside Secure Folder prevents the main user (`User 0`) from installing an APK with a differing signature.
-
-### Step 3: Check Dual Messenger / Work Profile
-1. Go to **Settings** -> **Advanced Features** -> **Dual Messenger**.
-2. Verify that Pro Gallery X is not configured as a dual app.
-
-### Step 4: ADB Command Recovery (For Developers / Testers)
-If ADB is connected, execute:
-```bash
-# Uninstall package completely across all user profiles
-adb uninstall com.progalleryx.app
-
-# If still lingering on Knox profiles:
-adb shell pm uninstall --user 0 com.progalleryx.app
-adb shell pm uninstall --user 150 com.progalleryx.app
-
-# Clean install of the verified build
-adb install -r ProGalleryX-2.0.0-rc2-20002-6c0b403-debug.apk
+### Handling Signature Conflict (Edge Cases Only)
+If a user previously installed a test build from an ephemeral CI artifact with an incompatible key, Android will display:
+```text
+INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package com.progalleryx.app signatures do not match newer version
 ```
+Only in this specific scenario is an uninstallation necessary:
+1. Go to **Settings** -> **Apps** -> `Pro Gallery X` -> **Uninstall**.
+2. Install the new verified canonical build.
+*(Do not delete Secure Folder or user personal files unless a package conflict specifically within that container is confirmed).*
