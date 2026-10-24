@@ -21,8 +21,11 @@ data class GalleryState(
     val sort: MediaSort = MediaSort.NEWEST,
     val loading: Boolean = false,
     val end: Boolean = false,
-    val error: String? = null
-)
+    val error: String? = null,
+    val selectedIds: Set<Long> = emptySet()
+) {
+    val isSelectionMode: Boolean get() = selectedIds.isNotEmpty()
+}
 
 class GalleryViewModel(app: Application) : AndroidViewModel(app) {
     private val repository = MediaRepository(app)
@@ -36,10 +39,31 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toggleFavorite(item: GalleryMedia) {
         favorites.toggle(item.uri)
-        if (mutable.value.filter == MediaFilter.FAVORITES) reload() 
+        if (mutable.value.filter == MediaFilter.FAVORITES) reload()
     }
 
-    fun loadAlbums() { viewModelScope.launch { runCatching { repository.albums() }.onSuccess { mutable.value = mutable.value.copy(albums = it) } } }
+    fun toggleSelection(id: Long) {
+        val next = GallerySelectionRules.toggle(mutable.value.selectedIds, id)
+        mutable.value = mutable.value.copy(selectedIds = next)
+    }
+
+    fun selectAll() {
+        val next = GallerySelectionRules.selectAll(mutable.value.items)
+        mutable.value = mutable.value.copy(selectedIds = next)
+    }
+
+    fun clearSelection() {
+        mutable.value = mutable.value.copy(selectedIds = emptySet())
+    }
+
+    fun loadAlbums() {
+        viewModelScope.launch {
+            runCatching { repository.albums() }.onSuccess {
+                mutable.value = mutable.value.copy(albums = it)
+            }
+        }
+    }
+
     fun setAlbum(albumId: Long?) { reload(album = albumId) }
     fun setSort(sort: MediaSort) { if (mutable.value.sort != sort) reload(sort = sort) }
     fun setSearch(value: String) {
@@ -48,13 +72,25 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setFilter(filter: MediaFilter) {
-        if (mutable.value.filter != filter) reload(filter)
+        if (mutable.value.filter != filter) reload(filter = filter)
     }
 
-    fun reload(filter: MediaFilter = mutable.value.filter, album: Long? = mutable.value.albumId, search: String = mutable.value.search, sort: MediaSort = mutable.value.sort) {
+    fun reload(
+        filter: MediaFilter = mutable.value.filter,
+        album: Long? = mutable.value.albumId,
+        search: String = mutable.value.search,
+        sort: MediaSort = mutable.value.sort
+    ) {
         request?.cancel()
         generation++
-        mutable.value = GalleryState(filter = filter, albumId = album, search = search, sort = sort, albums = mutable.value.albums)
+        mutable.value = GalleryState(
+            filter = filter,
+            albumId = album,
+            search = search,
+            sort = sort,
+            albums = mutable.value.albums,
+            selectedIds = emptySet()
+        )
         loadMore()
     }
 
@@ -68,19 +104,32 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
                 val batch = if (current.filter == MediaFilter.FAVORITES) withContext(Dispatchers.IO) {
                     favorites.savedUris().let { if (current.sort == MediaSort.OLDEST) it.reversed() else it }.filter { uri ->
                         if (current.search.isBlank()) true else runCatching {
-                            getApplication<Application>().contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                            getApplication<Application>().contentResolver.query(
+                                uri,
+                                arrayOf(android.provider.MediaStore.MediaColumns.DISPLAY_NAME),
+                                null, null, null
+                            )?.use { cursor ->
                                 cursor.moveToFirst() && cursor.getString(0).orEmpty().contains(current.search, ignoreCase = true)
                             } ?: false
                         }.getOrDefault(false)
                     }.drop(current.scanOffset).take(80).mapNotNull { uri ->
                         runCatching {
-                            GalleryMedia(android.content.ContentUris.parseId(uri), uri, uri.pathSegments.contains("video"), 0L)
+                            val id = android.content.ContentUris.parseId(uri)
+                            val isVideo = uri.toString().contains("video")
+                            GalleryMedia(id, uri, isVideo, System.currentTimeMillis() / 1000L)
                         }.getOrNull()
                     }
-                } else repository.page(current.scanOffset, filter = current.filter, albumId = current.albumId, search = current.search, sort = current.sort)
+                } else repository.page(
+                    offset = current.scanOffset,
+                    count = 80,
+                    filter = current.filter,
+                    albumId = current.albumId,
+                    search = current.search,
+                    sort = current.sort
+                )
+
                 if (token != generation) return@launch
-                // Some Android providers ignore offset arguments. Do not create
-                // an infinite list of repeated items in that situation.
+
                 val existing = current.items.mapTo(HashSet()) { it.uri }
                 val unique = batch.filter { existing.add(it.uri) }
                 mutable.value = current.copy(
@@ -92,8 +141,12 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (e: Exception) {
-                if (token == generation)
-                    mutable.value = current.copy(loading = false, error = e.localizedMessage ?: "تعذر قراءة الصور")
+                if (token == generation) {
+                    mutable.value = current.copy(
+                        loading = false,
+                        error = e.localizedMessage ?: "تعذر قراءة الصور"
+                    )
+                }
             }
         }
     }
