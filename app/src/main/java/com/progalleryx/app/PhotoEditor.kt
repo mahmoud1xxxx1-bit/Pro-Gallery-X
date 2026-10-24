@@ -48,6 +48,22 @@ data class PhotoAdjustments(
 
 /** Offline JPEG export. Source URI is read-only; destination must be a newly selected document. */
 object PhotoEditor {
+    internal fun openInputStream(context: Context, uri: Uri): java.io.InputStream? {
+        return if (uri.scheme == "file") {
+            uri.path?.let { File(it).takeIf { f -> f.exists() && f.canRead() }?.inputStream() }
+        } else {
+            context.contentResolver.openInputStream(uri)
+        }
+    }
+
+    internal fun openOutputStream(context: Context, uri: Uri): java.io.OutputStream? {
+        return if (uri.scheme == "file") {
+            uri.path?.let { File(it).outputStream() }
+        } else {
+            context.contentResolver.openOutputStream(uri, "w")
+        }
+    }
+
     suspend fun exportBatch(
         context: Context,
         targets: List<Pair<Uri, Uri>>,
@@ -89,19 +105,19 @@ object PhotoEditor {
                 settings.smoothBrushStrokes.size <= 200
             )
             val orientation = runCatching {
-                context.contentResolver.openInputStream(source)?.use {
+                openInputStream(context, source)?.use {
                     ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
                 } ?: ExifInterface.ORIENTATION_NORMAL
             }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            context.contentResolver.openInputStream(source)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-                ?: throw IOException("Unable to open image")
+            val boundsStream = openInputStream(context, source) ?: throw IOException("Unable to open image")
+            boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
             val largest = maxOf(bounds.outWidth, bounds.outHeight)
             if (largest <= 0) throw IOException("Invalid image")
             var factor = 1
             while (largest / factor > settings.maxDimension) factor *= 2
             val opts = BitmapFactory.Options().apply { inSampleSize = factor; inPreferredConfig = Bitmap.Config.ARGB_8888 }
-            val bitmap = context.contentResolver.openInputStream(source)?.use { BitmapFactory.decodeStream(it, null, opts) }
+            val bitmap = openInputStream(context, source)?.use { BitmapFactory.decodeStream(it, null, opts) }
                 ?: throw IOException("Cannot decode image")
             try {
                 val exifMatrix = Matrix().apply {

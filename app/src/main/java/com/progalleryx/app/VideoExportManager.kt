@@ -274,9 +274,14 @@ object VideoExportManager {
 
             // Write to destination Uri
             withContext(Dispatchers.IO) {
-                context.contentResolver.openOutputStream(targetUri)?.use { outStream ->
+                val outStream = if (targetUri.scheme == "file" && targetUri.path != null) {
+                    java.io.FileOutputStream(java.io.File(targetUri.path!!))
+                } else {
+                    context.contentResolver.openOutputStream(targetUri)
+                }
+                outStream?.use { stream ->
                     temp.inputStream().use { inStream ->
-                        inStream.copyTo(outStream)
+                        inStream.copyTo(stream)
                     }
                 } ?: throw IOException("Failed to open destination Uri for writing")
             }

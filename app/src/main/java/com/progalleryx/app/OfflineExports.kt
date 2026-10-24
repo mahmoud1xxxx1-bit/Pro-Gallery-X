@@ -21,23 +21,39 @@ enum class PdfLayout { PORTRAIT, LANDSCAPE, AUTO }
 enum class PdfPaper { A4, LETTER }
 
 object OfflineExports {
+    internal fun openInputStream(context: Context, uri: Uri): java.io.InputStream? {
+        return if (uri.scheme == "file") {
+            uri.path?.let { File(it).takeIf { f -> f.exists() && f.canRead() }?.inputStream() }
+        } else {
+            context.contentResolver.openInputStream(uri)
+        }
+    }
+
+    internal fun openOutputStream(context: Context, uri: Uri): java.io.OutputStream? {
+        return if (uri.scheme == "file") {
+            uri.path?.let { File(it).outputStream() }
+        } else {
+            context.contentResolver.openOutputStream(uri, "w")
+        }
+    }
+
     suspend fun rotateAndSave(context: Context, source: Uri, destination: Uri): Unit =
         withContext(Dispatchers.IO) {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            context.contentResolver.openInputStream(source)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-                ?: throw IOException("Cannot read photo")
+            val boundsStream = openInputStream(context, source) ?: throw IOException("Cannot read photo")
+            boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
             val maxDimension = maxOf(bounds.outWidth, bounds.outHeight)
             if (maxDimension <= 0) throw IOException("Invalid photo dimensions")
             var sample = 1
             while (maxDimension / sample > 2400) sample *= 2
             val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-            val original = context.contentResolver.openInputStream(source)?.use { BitmapFactory.decodeStream(it, null, opts) }
+            val original = openInputStream(context, source)?.use { BitmapFactory.decodeStream(it, null, opts) }
                 ?: throw IOException("Cannot decode photo")
             try {
                 val matrix = Matrix().apply { postRotate(90f) }
                 val rotated = Bitmap.createBitmap(original, 0, 0, original.width, original.height, matrix, true)
                 try {
-                    context.contentResolver.openOutputStream(destination, "w")?.use {
+                    openOutputStream(context, destination)?.use {
                         if (!rotated.compress(Bitmap.CompressFormat.JPEG, 90, it)) throw IOException("Image export failed")
                     } ?: throw IOException("Cannot write image")
                 } finally { if (rotated !== original) rotated.recycle() }
@@ -53,13 +69,13 @@ object OfflineExports {
                 images.forEachIndexed { index, uri ->
                     currentCoroutineContext().ensureActive()
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-                        ?: throw IOException("Cannot read image ${index + 1}")
+                    val boundsStream = openInputStream(context, uri) ?: throw IOException("Cannot read image ${index + 1}")
+                    boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
                     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw IOException("Unsupported image")
                     var sample = 1
                     while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 1600) sample *= 2
                     val options = BitmapFactory.Options().apply { inSampleSize = sample }
-                    val bitmap = context.contentResolver.openInputStream(uri)?.use {
+                    val bitmap = openInputStream(context, uri)?.use {
                         BitmapFactory.decodeStream(it, null, options)
                     } ?: throw IOException("Cannot decode image ${index + 1}")
                     try {
@@ -88,7 +104,7 @@ object OfflineExports {
                 temp.outputStream().use { pdf.writeTo(it) }
                 if (temp.length() <= 0L) throw IOException("Empty PDF output")
                 currentCoroutineContext().ensureActive()
-                context.contentResolver.openOutputStream(destination, "w")?.use { output ->
+                openOutputStream(context, destination)?.use { output ->
                     temp.inputStream().use { it.copyTo(output, 256 * 1024) }
                 } ?: throw IOException("Cannot save PDF")
             } finally {
