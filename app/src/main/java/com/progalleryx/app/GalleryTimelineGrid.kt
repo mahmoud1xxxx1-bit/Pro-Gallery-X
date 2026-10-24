@@ -135,6 +135,7 @@ fun GalleryTimelineGrid(
                         model = ImageRequest.Builder(context)
                             .data(item.uri)
                             .size(360)
+                            .precision(coil.size.Precision.INEXACT)
                             .crossfade(true)
                             .build(),
                         contentDescription = item.displayName.ifBlank { "Media Item" },

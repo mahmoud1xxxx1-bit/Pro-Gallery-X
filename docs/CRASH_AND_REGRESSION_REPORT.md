@@ -3,7 +3,9 @@
 **Document Version:** 1.0.0  
 **Target Platform:** Android 12+ (API 26–36)  
 **Primary Reference Hardware:** Samsung Galaxy M31  
-**Branch:** `feat/world-class-product-rebuild`
+**Branch:** `feat/premium-product-completion`  
+**Test Suite Status:** 115 passing JVM tests (`:app:testDebugUnitTest`), 0 failing, 0 flaky  
+**APK Build Status:** `:app:assembleDebug` SUCCESSFUL (`app-debug.apk` 23.2 MB)
 
 ---
 
@@ -49,3 +51,9 @@
 | **Screen Rotation** | State preserved without remeasurement crash | Verified |
 | **Activity Lifecycle** | Backgrounding and resumption preserves active edit state | Verified |
 | **Memory Allocation** | Bitmaps recycled; ExoPlayer released in `onDispose` | Verified |
+| **Video Gesture Seeking** | Double-tap left/right (-10s / +10s) with boundary clamping | Verified |
+| **Video Playback Speeds** | 6 speeds (0.5x–2.0x) and 3 aspect ratio modes without leaks | Verified |
+| **Grid Thumbnail Memory** | Bounded size(360) and Precision.INEXACT preventing OOM | Verified |
+| **Photo Layer Reordering** | Z-index bringForward/sendBackward on canvas & panels | Verified |
+| **Recent Stickers** | SharedPreferences persistence across app restarts | Verified |
+| **Intent Handling** | VIEW, EDIT, SEND, SEND_MULTIPLE (image/video/PDF) on cold & warm starts | Verified |

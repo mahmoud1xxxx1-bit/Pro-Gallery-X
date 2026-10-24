@@ -628,6 +628,28 @@ fun PhotoEditorSection(
                                         points = current.points + point
                                     )
                                 }
+                            },
+                            onBringForward = { id ->
+                                snapshot()
+                                val tIdx = textLayers.indexOfFirst { it.id == id }
+                                if (tIdx >= 0) {
+                                    textLayers = LayerTransformRules.bringForward(textLayers, tIdx)
+                                }
+                                val sIdx = stickerLayers.indexOfFirst { it.id == id }
+                                if (sIdx >= 0) {
+                                    stickerLayers = LayerTransformRules.bringForward(stickerLayers, sIdx)
+                                }
+                            },
+                            onSendBackward = { id ->
+                                snapshot()
+                                val tIdx = textLayers.indexOfFirst { it.id == id }
+                                if (tIdx >= 0) {
+                                    textLayers = LayerTransformRules.sendBackward(textLayers, tIdx)
+                                }
+                                val sIdx = stickerLayers.indexOfFirst { it.id == id }
+                                if (sIdx >= 0) {
+                                    stickerLayers = LayerTransformRules.sendBackward(stickerLayers, sIdx)
+                                }
                             }
                         )
                     } else {
@@ -842,6 +864,29 @@ fun PhotoEditorSection(
                                             }
 
                                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                val layerIdx = textLayers.indexOfFirst { it.id == layer.id }
+                                                IconButton(
+                                                    onClick = {
+                                                        if (layerIdx < textLayers.size - 1) {
+                                                            snapshot()
+                                                            textLayers = LayerTransformRules.bringForward(textLayers, layerIdx)
+                                                        }
+                                                    },
+                                                    enabled = layerIdx < textLayers.size - 1
+                                                ) {
+                                                    Icon(Icons.Default.ArrowUpward, contentDescription = "للأمام", modifier = Modifier.size(18.dp))
+                                                }
+                                                IconButton(
+                                                    onClick = {
+                                                        if (layerIdx > 0) {
+                                                            snapshot()
+                                                            textLayers = LayerTransformRules.sendBackward(textLayers, layerIdx)
+                                                        }
+                                                    },
+                                                    enabled = layerIdx > 0
+                                                ) {
+                                                    Icon(Icons.Default.ArrowDownward, contentDescription = "للخلف", modifier = Modifier.size(18.dp))
+                                                }
                                                 IconButton(onClick = {
                                                     editingTextLayer = layer
                                                     showTextDialog = true
@@ -914,6 +959,50 @@ fun PhotoEditorSection(
                                                         .clip(CircleShape)
                                                         .background(Color(sticker.colorArgb))
                                                 )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (activeLayerId != null && stickerLayers.any { it.id == activeLayerId }) {
+                                    val stickerIdx = stickerLayers.indexOfFirst { it.id == activeLayerId }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("التحكم بالملصق المحدد", style = MaterialTheme.typography.labelMedium)
+                                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            IconButton(
+                                                onClick = {
+                                                    if (stickerIdx < stickerLayers.size - 1) {
+                                                        snapshot()
+                                                        stickerLayers = LayerTransformRules.bringForward(stickerLayers, stickerIdx)
+                                                    }
+                                                },
+                                                enabled = stickerIdx < stickerLayers.size - 1
+                                            ) {
+                                                Icon(Icons.Default.ArrowUpward, contentDescription = "للأمام", modifier = Modifier.size(18.dp))
+                                            }
+                                            IconButton(
+                                                onClick = {
+                                                    if (stickerIdx > 0) {
+                                                        snapshot()
+                                                        stickerLayers = LayerTransformRules.sendBackward(stickerLayers, stickerIdx)
+                                                    }
+                                                },
+                                                enabled = stickerIdx > 0
+                                            ) {
+                                                Icon(Icons.Default.ArrowDownward, contentDescription = "للخلف", modifier = Modifier.size(18.dp))
+                                            }
+                                            IconButton(
+                                                onClick = {
+                                                    snapshot()
+                                                    stickerLayers = stickerLayers.filterNot { it.id == activeLayerId }
+                                                    activeLayerId = null
+                                                }
+                                            ) {
+                                                Icon(Icons.Default.Delete, contentDescription = "حذف", tint = MaterialTheme.colorScheme.error)
                                             }
                                         }
                                     }

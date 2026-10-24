@@ -46,16 +46,28 @@ enum class GalleryTab {
 }
 
 class MainActivity : ComponentActivity() {
+    private val incomingIntent = androidx.compose.runtime.mutableStateOf<Intent?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        incomingIntent.value = intent
         setContent {
-            ProGalleryApp()
+            ProGalleryApp(intentState = incomingIntent)
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        incomingIntent.value = intent
     }
 }
 
 @Composable
-fun ProGalleryApp(vm: GalleryViewModel = viewModel()) {
+fun ProGalleryApp(
+    vm: GalleryViewModel = viewModel(),
+    intentState: State<Intent?>? = null
+) {
     val context = LocalContext.current
     val state by vm.state.collectAsState()
     val preferences = remember { AppPreferences(context) }
@@ -146,16 +158,29 @@ fun ProGalleryApp(vm: GalleryViewModel = viewModel()) {
     var directEditingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var directEditingVideoUri by remember { mutableStateOf<Uri?>(null) }
 
-    // System Intent resolution (ACTION_VIEW, ACTION_EDIT, ACTION_SEND)
-    val activity = context as? Activity
-    LaunchedEffect(activity?.intent) {
-        val intent = activity?.intent ?: return@LaunchedEffect
+    // System Intent resolution (ACTION_VIEW, ACTION_EDIT, ACTION_SEND, ACTION_SEND_MULTIPLE)
+    val currentIntent = intentState?.value ?: (context as? Activity)?.intent
+    LaunchedEffect(currentIntent) {
+        val intent = currentIntent ?: return@LaunchedEffect
         val action = intent.action
         val data = intent.data
         val mimeType = intent.type ?: data?.let { context.contentResolver.getType(it) }
 
+        // Safely acquire persistable URI permission if content URI
+        if (data != null && data.scheme == "content") {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    data,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        }
+
         if ((action == Intent.ACTION_VIEW || action == Intent.ACTION_EDIT) && data != null) {
-            if (mimeType?.startsWith("image/") == true) {
+            val isPdf = mimeType == "application/pdf" || data.toString().endsWith(".pdf", ignoreCase = true)
+            if (isPdf) {
+                currentTab = GalleryTab.STUDIO
+            } else if (mimeType?.startsWith("image/") == true) {
                 directEditingPhotoUri = data
             } else if (mimeType?.startsWith("video/") == true) {
                 directEditingVideoUri = data
@@ -168,11 +193,32 @@ fun ProGalleryApp(vm: GalleryViewModel = viewModel()) {
                 intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
             }
             if (streamUri != null) {
-                if (mimeType?.startsWith("image/") == true) {
+                if (streamUri.scheme == "content") {
+                    runCatching {
+                        context.contentResolver.takePersistableUriPermission(
+                            streamUri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    }
+                }
+                val isPdf = mimeType == "application/pdf" || streamUri.toString().endsWith(".pdf", ignoreCase = true)
+                if (isPdf) {
+                    currentTab = GalleryTab.STUDIO
+                } else if (mimeType?.startsWith("image/") == true) {
                     directEditingPhotoUri = streamUri
                 } else if (mimeType?.startsWith("video/") == true) {
                     directEditingVideoUri = streamUri
                 }
+            }
+        } else if (action == Intent.ACTION_SEND_MULTIPLE) {
+            val streamUris = if (Build.VERSION.SDK_INT >= 33) {
+                intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+            }
+            if (!streamUris.isNullOrEmpty()) {
+                currentTab = GalleryTab.STUDIO
             }
         }
     }

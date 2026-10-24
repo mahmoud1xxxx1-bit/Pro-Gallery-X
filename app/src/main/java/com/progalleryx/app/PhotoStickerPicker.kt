@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,9 +44,18 @@ fun PhotoStickerPicker(
     onSelectShape: (ShapeType, Long) -> Unit,
     onSelectCustomImage: (Uri) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val preferences = remember { AppPreferences(context) }
+    val recents = remember { preferences.recentStickers }
+
     var selectedCategoryIndex by remember { mutableIntStateOf(0) }
     var selectedShapeColor by remember { mutableLongStateOf(0xFFFF3B30L) }
     var searchQuery by remember { mutableStateOf("") }
+
+    val handleSelectEmoji: (String) -> Unit = { emoji ->
+        preferences.addRecentSticker(emoji)
+        onSelectEmoji(emoji)
+    }
 
     val customImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
@@ -54,18 +64,29 @@ fun PhotoStickerPicker(
         }
     }
 
-    val categories = remember {
-        listOf(
-            StickerCategory(
-                id = "expressions",
-                title = "تعبيرات",
-                items = listOf(
-                    "😂", "😍", "🥰", "😎", "🤩", "🥳", "🥺", "😊",
-                    "🤣", "😋", "😜", "🤪", "😇", "🤠", "🧐", "🤫",
-                    "🤔", "🤯", "😱", "🥶", "🥵", "😴", "🤤", "🥱",
-                    "😷", "🤒", "🤑", "😈", "👻", "👽", "🤖", "🙈"
+    val categories = remember(recents) {
+        val list = mutableListOf<StickerCategory>()
+        if (recents.isNotEmpty()) {
+            list.add(
+                StickerCategory(
+                    id = "recents",
+                    title = "الأخيرة",
+                    items = recents
                 )
-            ),
+            )
+        }
+        list.addAll(
+            listOf(
+                StickerCategory(
+                    id = "expressions",
+                    title = "تعبيرات",
+                    items = listOf(
+                        "😂", "😍", "🥰", "😎", "🤩", "🥳", "🥺", "😊",
+                        "🤣", "😋", "😜", "🤪", "😇", "🤠", "🧐", "🤫",
+                        "🤔", "🤯", "😱", "🥶", "🥵", "😴", "🤤", "🥱",
+                        "😷", "🤒", "🤑", "😈", "👻", "👽", "🤖", "🙈"
+                    )
+                ),
             StickerCategory(
                 id = "hearts",
                 title = "قلوب",
@@ -127,7 +148,8 @@ fun PhotoStickerPicker(
                     "💥", "💫", "💨", "💢", "✨", "🔥", "⚡", "🎯"
                 )
             )
-        )
+        ))
+        list
     }
 
     val shapes = remember {
@@ -273,7 +295,7 @@ fun PhotoStickerPicker(
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                         .clickable {
-                                            onSelectEmoji(emoji)
+                                            handleSelectEmoji(emoji)
                                             onDismiss()
                                         },
                                     contentAlignment = Alignment.Center
@@ -302,7 +324,7 @@ fun PhotoStickerPicker(
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                     .clickable {
-                                        onSelectEmoji(emoji)
+                                        handleSelectEmoji(emoji)
                                         onDismiss()
                                     },
                                 contentAlignment = Alignment.Center

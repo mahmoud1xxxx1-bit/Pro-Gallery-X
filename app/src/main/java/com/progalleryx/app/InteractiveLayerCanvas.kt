@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
@@ -61,7 +63,9 @@ fun InteractiveLayerCanvas(
     onDuplicateLayer: (String) -> Unit,
     onEditTextLayer: (InteractiveTextLayer) -> Unit,
     onAddBrushStroke: (SmoothBrushStroke) -> Unit,
-    onAppendStrokePoint: (NormalizedPoint) -> Unit
+    onAppendStrokePoint: (NormalizedPoint) -> Unit,
+    onBringForward: (String) -> Unit = {},
+    onSendBackward: (String) -> Unit = {}
 ) {
     BoxWithConstraints(
         modifier = modifier
@@ -372,6 +376,25 @@ fun InteractiveLayerCanvas(
 
                 // If selected, show action handles
                 if (isSelected) {
+                    // Bring forward handle (Top-Start)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .offset(x = (-10).dp, y = (-10).dp)
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF5856D6))
+                            .clickable { onBringForward(sticker.id) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowUpward,
+                            contentDescription = "للأمام",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
                     // Delete handle (Top-Right)
                     Box(
                         modifier = Modifier
@@ -552,6 +575,25 @@ fun InteractiveLayerCanvas(
 
                 // If selected, show action handles around the text box
                 if (isSelected) {
+                    // Bring forward handle (Top-Center)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .offset(y = (-10).dp)
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF5856D6))
+                            .clickable { onBringForward(layer.id) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowUpward,
+                            contentDescription = "للأمام",
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+
                     // Edit handle (Top-Start)
                     Box(
                         modifier = Modifier

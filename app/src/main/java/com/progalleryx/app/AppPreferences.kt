@@ -37,9 +37,34 @@ class AppPreferences(context: Context) {
             prefs.edit().putString(KEY_LANGUAGE, value.name).apply()
         }
 
+    var recentStickers: List<String>
+        get() = parseRecentStickers(prefs.getString(KEY_RECENT_STICKERS, "") ?: "")
+        set(value) {
+            prefs.edit().putString(KEY_RECENT_STICKERS, formatRecentStickers(value)).apply()
+        }
+
+    fun addRecentSticker(sticker: String) {
+        recentStickers = appendRecentSticker(recentStickers, sticker)
+    }
+
     companion object {
         private const val KEY_THEME = "app_theme_mode"
         private const val KEY_LANGUAGE = "app_language"
+        private const val KEY_RECENT_STICKERS = "app_recent_stickers"
+
+        fun formatRecentStickers(stickers: List<String>): String =
+            stickers.take(30).joinToString("###")
+
+        fun parseRecentStickers(raw: String): List<String> =
+            if (raw.isBlank()) emptyList() else raw.split("###").filter { it.isNotBlank() }
+
+        fun appendRecentSticker(existing: List<String>, sticker: String): List<String> {
+            if (sticker.isBlank()) return existing
+            val updated = existing.toMutableList()
+            updated.remove(sticker)
+            updated.add(0, sticker)
+            return updated.take(30)
+        }
 
         fun isArabicLanguage(language: AppLanguage, systemLocaleIsArabic: Boolean): Boolean {
             return when (language) {
