@@ -7,3 +7,8 @@ local.properties
 *.aab
 *.jks
 *.keystore
+.kotlin/
+
+forensic_apks/
+test_apks/
+test_media/

@@ -1,278 +1,845 @@
 package com.progalleryx.app
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.res.Configuration
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.BrightnessAuto
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import android.content.Intent
-import android.provider.MediaStore
-import android.app.Activity
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import kotlinx.coroutines.flow.collectLatest
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.ui.text.style.TextOverflow
+import java.util.Locale
 
-private val Navy = Color(0xFF17263B)
-private val Blue = Color(0xFF2563EB)
-private val Back = Color(0xFFF7F9FC)
+enum class GalleryTab {
+    PICTURES,
+    ALBUMS,
+    STUDIO
+}
 
 class MainActivity : ComponentActivity() {
+    private val incomingIntent = androidx.compose.runtime.mutableStateOf<Intent?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { ProGalleryScreen() }
+        incomingIntent.value = intent
+        setContent {
+            ProGalleryApp(intentState = incomingIntent)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        incomingIntent.value = intent
     }
 }
+
 @Composable
-fun ProGalleryScreen(vm: GalleryViewModel = viewModel()) {
-    val ctx = LocalContext.current
+fun ProGalleryApp(
+    vm: GalleryViewModel = viewModel(),
+    intentState: State<Intent?>? = null
+) {
+    val context = LocalContext.current
     val state by vm.state.collectAsState()
-    val needed = remember {
-        if (Build.VERSION.SDK_INT >= 34)
-            arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
-        else if (Build.VERSION.SDK_INT >= 33)
+    val preferences = remember { AppPreferences(context) }
+
+    var currentThemeMode by remember { mutableStateOf(preferences.themeMode) }
+    var currentLanguage by remember { mutableStateOf(preferences.language) }
+    var showAboutDialog by remember { mutableStateOf(false) }
+
+    val systemLocaleIsArabic = remember {
+        Locale.getDefault().language.equals("ar", ignoreCase = true)
+    }
+    val isArabic = remember(currentLanguage, systemLocaleIsArabic) {
+        AppPreferences.isArabicLanguage(currentLanguage, systemLocaleIsArabic)
+    }
+    val layoutDirection = if (isArabic) LayoutDirection.Rtl else LayoutDirection.Ltr
+
+    // Permissions handling
+    val neededPermissions = remember {
+        if (Build.VERSION.SDK_INT >= 34) {
+            arrayOf(
+                Manifest.permission.READ_MEDIA_IMAGES,
+                Manifest.permission.READ_MEDIA_VIDEO,
+                Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+            )
+        } else if (Build.VERSION.SDK_INT >= 33) {
             arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO)
-        else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        } else {
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
     }
-    fun permissionGranted(name: String): Boolean =
-        ctx.checkSelfPermission(name) == android.content.pm.PackageManager.PERMISSION_GRANTED
-    var permitted by remember { mutableStateOf(needed.any(::permissionGranted)) }
+
+    fun permissionGranted(permission: String): Boolean =
+        context.checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    var permitted by remember { mutableStateOf(neededPermissions.any(::permissionGranted)) }
     var partialAccess by remember {
-        mutableStateOf(Build.VERSION.SDK_INT >= 34 &&
+        mutableStateOf(
+            Build.VERSION.SDK_INT >= 34 &&
             permissionGranted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) &&
-            !permissionGranted(Manifest.permission.READ_MEDIA_IMAGES))
+            !permissionGranted(Manifest.permission.READ_MEDIA_IMAGES)
+        )
     }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        permitted = needed.any(::permissionGranted)
-        partialAccess = Build.VERSION.SDK_INT >= 34 && ctx.checkSelfPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == android.content.pm.PackageManager.PERMISSION_GRANTED && ctx.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != android.content.pm.PackageManager.PERMISSION_GRANTED
-        if (permitted) { vm.reload(); vm.loadAlbums() }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        permitted = neededPermissions.any(::permissionGranted)
+        partialAccess = Build.VERSION.SDK_INT >= 34 &&
+            context.checkSelfPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
+            context.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (permitted) {
+            vm.reload()
+            vm.loadAlbums()
+        }
     }
-    val favorites = remember { FavoritesStore(ctx) }
-    var selected by remember { mutableStateOf<GalleryMedia?>(null) }
-    var favoriteRevision by remember { mutableIntStateOf(0) }
-    var showDetails by remember { mutableStateOf(false) }
-    var showTools by remember { mutableStateOf(false) }
-    var pickedMedia by remember { mutableStateOf<List<GalleryMedia>>(emptyList()) }
-    var searchInput by remember { mutableStateOf("") }
-    LaunchedEffect(searchInput) {
-        kotlinx.coroutines.delay(350)
-        vm.setSearch(searchInput)
-    }
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { picked ->
-        pickedMedia = picked.mapIndexed { i, uri -> GalleryMedia(-1L - i, uri, false, 0L) }
-    }
-    var pendingTrash by remember { mutableStateOf<GalleryMedia?>(null) }
-    val trashLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) { selected = null; pendingTrash = null; vm.reload() }
-    }
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    // Refresh on resume
+    val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                val current = needed.any(::permissionGranted)
+                val current = neededPermissions.any(::permissionGranted)
                 val limited = Build.VERSION.SDK_INT >= 34 &&
                     permissionGranted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) &&
                     !permissionGranted(Manifest.permission.READ_MEDIA_IMAGES)
                 val changed = current != permitted || limited != partialAccess
                 permitted = current
                 partialAccess = limited
-                if (changed && current) { vm.reload(); vm.loadAlbums() }
+                if (changed && current) {
+                    vm.reload()
+                    vm.loadAlbums()
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    LaunchedEffect(permitted) { if (permitted) { vm.reload(); vm.loadAlbums() } }
-    MaterialTheme(colorScheme = lightColorScheme(primary = Blue, background = Back, surface = Color.White)) {
-        if (showTools) {
-            OfflineToolsPanel(onClose = { showTools = false })
-        } else Column(Modifier.fillMaxSize().background(Back)) {
-            Row(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) { Text("Pro Gallery X", fontWeight = FontWeight.Bold, color = Navy, style = MaterialTheme.typography.titleLarge); Text("ذكرياتك، على هاتفك", color = Color.Gray, style = MaterialTheme.typography.labelSmall) }
-                TextButton(onClick = { showTools = true }) { Text("الأدوات") }
-                IconButton(onClick = { if (permitted) vm.reload() }) { Icon(Icons.Outlined.Refresh, contentDescription = "تحديث المعرض", tint = Blue) }
+
+    LaunchedEffect(permitted) {
+        if (permitted) {
+            vm.reload()
+            vm.loadAlbums()
+        }
+    }
+
+    // Navigation and screen states
+    var currentTab by remember { mutableStateOf(GalleryTab.PICTURES) }
+    var viewingIndex by remember { mutableStateOf<Int?>(null) }
+    var directEditingPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var directEditingVideoUri by remember { mutableStateOf<Uri?>(null) }
+
+    // System Intent resolution (ACTION_VIEW, ACTION_EDIT, ACTION_SEND, ACTION_SEND_MULTIPLE)
+    val currentIntent = intentState?.value ?: (context as? Activity)?.intent
+    LaunchedEffect(currentIntent) {
+        val intent = currentIntent ?: return@LaunchedEffect
+        val action = intent.action
+        val data = intent.data
+        val mimeType = intent.type ?: data?.let { context.contentResolver.getType(it) }
+
+        // Safely acquire persistable URI permission if content URI
+        if (data != null && data.scheme == "content") {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    data,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
             }
-            if (!permitted) {
-                Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Outlined.Collections, null, tint = Blue, modifier = Modifier.size(64.dp))
-                    Spacer(Modifier.height(20.dp))
-                    Text("صورك تبقى على هاتفك", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    Text("امنح إذن الوصول لعرض الصور والفيديوهات محليًا.", color = Color.Gray)
-                    Spacer(Modifier.height(20.dp))
-                    Button(onClick = { launcher.launch(needed) }) { Text("السماح بالوصول") }
-                }
+        }
+
+        if ((action == Intent.ACTION_VIEW || action == Intent.ACTION_EDIT) && data != null) {
+            val isPdf = mimeType == "application/pdf" || data.toString().endsWith(".pdf", ignoreCase = true)
+            if (isPdf) {
+                currentTab = GalleryTab.STUDIO
+            } else if (mimeType?.startsWith("image/") == true) {
+                directEditingPhotoUri = data
+            } else if (mimeType?.startsWith("video/") == true) {
+                directEditingVideoUri = data
+            }
+        } else if (action == Intent.ACTION_SEND) {
+            val streamUri = if (Build.VERSION.SDK_INT >= 33) {
+                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
             } else {
-                Text("الصور والفيديوهات", Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = Navy)
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+            }
+            if (streamUri != null) {
+                if (streamUri.scheme == "content") {
+                    runCatching {
+                        context.contentResolver.takePersistableUriPermission(
+                            streamUri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    }
+                }
+                val isPdf = mimeType == "application/pdf" || streamUri.toString().endsWith(".pdf", ignoreCase = true)
+                if (isPdf) {
+                    currentTab = GalleryTab.STUDIO
+                } else if (mimeType?.startsWith("image/") == true) {
+                    directEditingPhotoUri = streamUri
+                } else if (mimeType?.startsWith("video/") == true) {
+                    directEditingVideoUri = streamUri
+                }
+            }
+        } else if (action == Intent.ACTION_SEND_MULTIPLE) {
+            val streamUris = if (Build.VERSION.SDK_INT >= 33) {
+                intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+            }
+            if (!streamUris.isNullOrEmpty()) {
+                currentTab = GalleryTab.STUDIO
+            }
+        }
+    }
+
+    var searchActive by remember { mutableStateOf(false) }
+    var searchInput by remember { mutableStateOf("") }
+    LaunchedEffect(searchInput) {
+        kotlinx.coroutines.delay(300L)
+        vm.setSearch(searchInput)
+    }
+
+    // Trash handling
+    var pendingTrashItems by remember { mutableStateOf<List<GalleryMedia>>(emptyList()) }
+    val trashLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            viewingIndex = null
+            pendingTrashItems = emptyList()
+            vm.clearSelection()
+            vm.reload()
+        }
+    }
+
+    val gridState = rememberLazyGridState()
+
+    // Infinite scroll pagination
+    LaunchedEffect(gridState, state.items.size, state.loading, state.end, state.filter) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collectLatest { lastIndex ->
+            if (state.items.isNotEmpty() && lastIndex >= state.items.lastIndex - 15 && !state.loading && !state.end) {
+                vm.loadMore()
+            }
+        }
+    }
+
+    // Apply layout direction and theme
+    CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
+        ProGalleryTheme(themeMode = currentThemeMode) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                when {
+                    // 1. Direct Photo Editor Mode
+                    directEditingPhotoUri != null -> {
+                        var editorBusy by remember { mutableStateOf(false) }
+                        var editorMessage by remember { mutableStateOf("") }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                        ) {
+                            if (editorMessage.isNotBlank()) {
+                                Text(
+                                    text = editorMessage,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
+                            PhotoEditorSection(
+                                busy = editorBusy,
+                                onBusyChange = { editorBusy = it },
+                                onMessageChange = { editorMessage = it },
+                                initialImageUri = directEditingPhotoUri,
+                                onClose = {
+                                    directEditingPhotoUri = null
+                                    vm.reload()
+                                }
+                            )
+                        }
+                    }
+
+                    // 2. Direct Video Editor Mode
+                    directEditingVideoUri != null -> {
+                        var editorBusy by remember { mutableStateOf(false) }
+                        var editorMessage by remember { mutableStateOf("") }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                        ) {
+                            if (editorMessage.isNotBlank()) {
+                                Text(
+                                    text = editorMessage,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
+                            VideoEditorSection(
+                                busy = editorBusy,
+                                onBusyChange = { editorBusy = it },
+                                onMessageChange = { editorMessage = it },
+                                initialVideoUri = directEditingVideoUri,
+                                onClose = {
+                                    directEditingVideoUri = null
+                                    vm.reload()
+                                },
+                                isArabic = isArabic
+                            )
+                        }
+                    }
+
+                    // 3. Fullscreen Media Viewer Mode
+                    viewingIndex != null && state.items.isNotEmpty() -> {
+                        FullscreenMediaViewer(
+                            mediaList = state.items,
+                            initialIndex = viewingIndex!!,
+                            isArabic = isArabic,
+                            onClose = { viewingIndex = null },
+                            onEditPhoto = { item -> directEditingPhotoUri = item.uri },
+                            onEditVideo = { item -> directEditingVideoUri = item.uri },
+                            onToggleFavorite = { item -> vm.toggleFavorite(item) },
+                            onTrashItem = { item -> pendingTrashItems = listOf(item) },
+                            isFavorite = { item -> vm.isFavorite(item) }
+                        )
+                    }
+
+                    // 4. Main Gallery Interface
+                    else -> {
+                        Scaffold(
+                            topBar = {
+                                GalleryTopBar(
+                                    isSelectionMode = state.isSelectionMode,
+                                    selectedCount = state.selectedIds.size,
+                                    isArabic = isArabic,
+                                    searchActive = searchActive,
+                                    searchInput = searchInput,
+                                    currentAlbum = state.albums.firstOrNull { it.id == state.albumId },
+                                    currentThemeMode = currentThemeMode,
+                                    currentLanguage = currentLanguage,
+                                    onSearchActiveChange = { searchActive = it },
+                                    onSearchInputChange = { searchInput = it },
+                                    onClearAlbum = { vm.setAlbum(null) },
+                                    onClearSelection = { vm.clearSelection() },
+                                    onSelectAll = { vm.selectAll() },
+                                    onThemeToggle = {
+                                        val next = when (currentThemeMode) {
+                                            ThemeMode.SYSTEM -> ThemeMode.DARK
+                                            ThemeMode.DARK -> ThemeMode.LIGHT
+                                            ThemeMode.LIGHT -> ThemeMode.SYSTEM
+                                        }
+                                        currentThemeMode = next
+                                        preferences.themeMode = next
+                                    },
+                                    onLanguageToggle = {
+                                        val next = when (currentLanguage) {
+                                            AppLanguage.SYSTEM -> if (systemLocaleIsArabic) AppLanguage.ENGLISH else AppLanguage.ARABIC
+                                            AppLanguage.ARABIC -> AppLanguage.ENGLISH
+                                            AppLanguage.ENGLISH -> AppLanguage.ARABIC
+                                        }
+                                        currentLanguage = next
+                                        preferences.language = next
+                                    },
+                                    onAboutClick = { showAboutDialog = true },
+                                    onRefresh = { if (permitted) vm.reload() }
+                                )
+                            },
+                            bottomBar = {
+                                if (state.isSelectionMode) {
+                                    // Selection Action Bar
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        tonalElevation = 8.dp
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.SpaceEvenly,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            val selectedItems = state.items.filter { state.selectedIds.contains(it.id) }
+
+                                            // Share Selected
+                                            IconButton(
+                                                onClick = {
+                                                    if (selectedItems.isNotEmpty()) {
+                                                        val uris = ArrayList(selectedItems.map { it.uri })
+                                                        val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                                                            type = "*/*"
+                                                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                        }
+                                                        context.startActivity(
+                                                            Intent.createChooser(shareIntent, Localization.share(isArabic))
+                                                        )
+                                                    }
+                                                }
+                                            ) {
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Icon(Icons.Outlined.Share, contentDescription = Localization.share(isArabic))
+                                                    Text(Localization.share(isArabic), style = MaterialTheme.typography.labelSmall)
+                                                }
+                                            }
+
+                                            // Trash Selected
+                                            IconButton(
+                                                onClick = {
+                                                    if (selectedItems.isNotEmpty()) {
+                                                        pendingTrashItems = selectedItems
+                                                    }
+                                                }
+                                            ) {
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Icon(Icons.Outlined.Delete, contentDescription = Localization.delete(isArabic), tint = Color(0xFFFF5252))
+                                                    Text(Localization.delete(isArabic), style = MaterialTheme.typography.labelSmall, color = Color(0xFFFF5252))
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // Samsung Gallery Standard Bottom Navigation
+                                    NavigationBar(
+                                        containerColor = MaterialTheme.colorScheme.surface,
+                                        tonalElevation = 6.dp
+                                    ) {
+                                        NavigationBarItem(
+                                            selected = currentTab == GalleryTab.PICTURES,
+                                            onClick = { currentTab = GalleryTab.PICTURES },
+                                            icon = { Icon(Icons.Outlined.Image, contentDescription = null) },
+                                            label = { Text(Localization.tabPictures(isArabic)) }
+                                        )
+                                        NavigationBarItem(
+                                            selected = currentTab == GalleryTab.ALBUMS,
+                                            onClick = {
+                                                currentTab = GalleryTab.ALBUMS
+                                                vm.loadAlbums()
+                                            },
+                                            icon = { Icon(Icons.Outlined.PhotoAlbum, contentDescription = null) },
+                                            label = { Text(Localization.tabAlbums(isArabic)) }
+                                        )
+                                        NavigationBarItem(
+                                            selected = currentTab == GalleryTab.STUDIO,
+                                            onClick = { currentTab = GalleryTab.STUDIO },
+                                            icon = { Icon(Icons.Outlined.AutoFixHigh, contentDescription = null) },
+                                            label = { Text(Localization.tabStudio(isArabic)) }
+                                        )
+                                    }
+                                }
+                            }
+                        ) { innerPadding ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding)
+                            ) {
+                                if (!permitted) {
+                                    // Permission Prompt
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(32.dp),
+                                        verticalArrangement = Arrangement.Center,
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.Collections,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(68.dp)
+                                        )
+                                        Spacer(Modifier.height(20.dp))
+                                        Text(
+                                            text = Localization.permissionTitle(isArabic),
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(
+                                            text = Localization.permissionBody(isArabic),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.height(24.dp))
+                                        Button(onClick = { permissionLauncher.launch(neededPermissions) }) {
+                                            Text(Localization.permissionButton(isArabic))
+                                        }
+                                    }
+                                } else {
+                                    when (currentTab) {
+                                        GalleryTab.PICTURES -> {
+                                            Column(modifier = Modifier.fillMaxSize()) {
+                                                // Quick Filter Chips Row
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    FilterChip(
+                                                        selected = state.filter == MediaFilter.ALL,
+                                                        onClick = { vm.setFilter(MediaFilter.ALL) },
+                                                        label = { Text(Localization.filterAll(isArabic)) }
+                                                    )
+                                                    FilterChip(
+                                                        selected = state.filter == MediaFilter.PHOTOS,
+                                                        onClick = { vm.setFilter(MediaFilter.PHOTOS) },
+                                                        label = { Text(Localization.filterPhotos(isArabic)) }
+                                                    )
+                                                    FilterChip(
+                                                        selected = state.filter == MediaFilter.VIDEOS,
+                                                        onClick = { vm.setFilter(MediaFilter.VIDEOS) },
+                                                        label = { Text(Localization.filterVideos(isArabic)) }
+                                                    )
+                                                    FilterChip(
+                                                        selected = state.filter == MediaFilter.FAVORITES,
+                                                        onClick = { vm.setFilter(MediaFilter.FAVORITES) },
+                                                        label = { Text(Localization.filterFavorites(isArabic)) }
+                                                    )
+
+                                                    Spacer(Modifier.weight(1f))
+
+                                                    IconButton(
+                                                        onClick = {
+                                                            val nextSort = if (state.sort == MediaSort.NEWEST) MediaSort.OLDEST else MediaSort.NEWEST
+                                                            vm.setSort(nextSort)
+                                                        }
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (state.sort == MediaSort.NEWEST) Icons.Outlined.South else Icons.Outlined.North,
+                                                            contentDescription = if (state.sort == MediaSort.NEWEST) Localization.sortNewest(isArabic) else Localization.sortOldest(isArabic),
+                                                            tint = MaterialTheme.colorScheme.primary
+                                                        )
+                                                    }
+                                                }
+
+                                                if (partialAccess) {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                                                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text(
+                                                            text = Localization.limitedPermission(isArabic),
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.primary,
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+                                                        TextButton(onClick = { permissionLauncher.launch(neededPermissions) }) {
+                                                            Text(Localization.updatePermission(isArabic))
+                                                        }
+                                                    }
+                                                }
+
+                                                // Timeline Grid
+                                                if (state.items.isEmpty() && !state.loading) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .padding(32.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Column(
+                                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Outlined.PhotoLibrary,
+                                                                contentDescription = null,
+                                                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                                                modifier = Modifier.size(56.dp)
+                                                            )
+                                                            Text(
+                                                                text = if (state.search.isNotBlank()) Localization.emptySearch(isArabic)
+                                                                else if (state.filter == MediaFilter.FAVORITES) Localization.emptyFavorites(isArabic)
+                                                                else Localization.emptyGallery(isArabic),
+                                                                style = MaterialTheme.typography.titleMedium,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
+                                                    }
+                                                } else {
+                                                    GalleryTimelineGrid(
+                                                        items = state.items,
+                                                        selectedIds = state.selectedIds,
+                                                        isArabic = isArabic,
+                                                        gridState = gridState,
+                                                        onItemClick = { item ->
+                                                            val idx = state.items.indexOfFirst { it.id == item.id }
+                                                            if (idx >= 0) viewingIndex = idx
+                                                        },
+                                                        onItemLongClick = { item ->
+                                                            vm.toggleSelection(item.id)
+                                                        },
+                                                        onSelectionToggle = { id -> vm.toggleSelection(id) },
+                                                        onSelectDateGroup = { groupItems ->
+                                                            val allSelected = groupItems.all { state.selectedIds.contains(it.id) }
+                                                            groupItems.forEach { item ->
+                                                                if (allSelected) {
+                                                                    if (state.selectedIds.contains(item.id)) vm.toggleSelection(item.id)
+                                                                } else {
+                                                                    if (!state.selectedIds.contains(item.id)) vm.toggleSelection(item.id)
+                                                                }
+                                                            }
+                                                        },
+                                                        loading = state.loading
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        GalleryTab.ALBUMS -> {
+                                            GalleryAlbumsView(
+                                                albums = state.albums,
+                                                isArabic = isArabic,
+                                                onAlbumSelected = { albumId ->
+                                                    vm.setAlbum(albumId)
+                                                    currentTab = GalleryTab.PICTURES
+                                                }
+                                            )
+                                        }
+
+                                        GalleryTab.STUDIO -> {
+                                            StudioHubScreen(
+                                                onClose = { currentTab = GalleryTab.PICTURES },
+                                                isArabic = isArabic
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Safe Trash Dialog
+                if (pendingTrashItems.isNotEmpty()) {
+                    AlertDialog(
+                        onDismissRequest = { pendingTrashItems = emptyList() },
+                        title = { Text(Localization.confirmTrashTitle(isArabic)) },
+                        text = { Text(Localization.confirmTrashBody(isArabic)) },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    val items = pendingTrashItems
+                                    pendingTrashItems = emptyList()
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                        runCatching {
+                                            val request = MediaStore.createTrashRequest(
+                                                context.contentResolver,
+                                                items.map { it.uri },
+                                                true
+                                            )
+                                            trashLauncher.launch(
+                                                IntentSenderRequest.Builder(request.intentSender).build()
+                                            )
+                                        }
+                                    }
+                                }
+                            ) {
+                                Text(Localization.continueAction(isArabic))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { pendingTrashItems = emptyList() }) {
+                                Text(Localization.cancel(isArabic))
+                            }
+                        }
+                    )
+                }
+
+                if (showAboutDialog) {
+                    AboutAppDialog(
+                        isArabic = isArabic,
+                        onDismiss = { showAboutDialog = false }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Professional Gallery Top Bar inspired by Samsung OneUI */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GalleryTopBar(
+    isSelectionMode: Boolean,
+    selectedCount: Int,
+    isArabic: Boolean,
+    searchActive: Boolean,
+    searchInput: String,
+    currentAlbum: GalleryAlbum?,
+    currentThemeMode: ThemeMode,
+    currentLanguage: AppLanguage,
+    onSearchActiveChange: (Boolean) -> Unit,
+    onSearchInputChange: (String) -> Unit,
+    onClearAlbum: () -> Unit,
+    onClearSelection: () -> Unit,
+    onSelectAll: () -> Unit,
+    onThemeToggle: () -> Unit,
+    onLanguageToggle: () -> Unit,
+    onAboutClick: () -> Unit,
+    onRefresh: () -> Unit
+) {
+    if (isSelectionMode) {
+        TopAppBar(
+            title = {
+                Text(
+                    text = Localization.selectedCount(selectedCount, isArabic),
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            navigationIcon = {
+                IconButton(onClick = onClearSelection) {
+                    Icon(Icons.Outlined.Close, contentDescription = Localization.close(isArabic))
+                }
+            },
+            actions = {
+                TextButton(onClick = onSelectAll) {
+                    Text(Localization.selectAll(isArabic))
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        )
+    } else if (searchActive) {
+        TopAppBar(
+            title = {
                 OutlinedTextField(
                     value = searchInput,
-                    onValueChange = { searchInput = it.take(80) },
-                    label = { Text("البحث باسم الصورة أو الفيديو") },
-                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (searchInput.isNotEmpty()) IconButton(onClick = { searchInput = "" }) {
-                            Icon(Icons.Outlined.Close, contentDescription = "مسح البحث")
-                        }
-                    },
+                    onValueChange = onSearchInputChange,
+                    placeholder = { Text(Localization.searchPlaceholder(isArabic)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = state.filter == MediaFilter.ALL, onClick = { vm.setFilter(MediaFilter.ALL) }, label = { Text("الكل") })
-                    FilterChip(selected = state.filter == MediaFilter.PHOTOS, onClick = { vm.setFilter(MediaFilter.PHOTOS) }, label = { Text("الصور") })
-                    FilterChip(selected = state.filter == MediaFilter.VIDEOS, onClick = { vm.setFilter(MediaFilter.VIDEOS) }, label = { Text("الفيديوهات") })
-                    FilterChip(selected = state.filter == MediaFilter.FAVORITES, onClick = { vm.setFilter(MediaFilter.FAVORITES) }, label = { Text("المفضلة") })
+            },
+            navigationIcon = {
+                IconButton(onClick = {
+                    onSearchActiveChange(false)
+                    onSearchInputChange("")
+                }) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = Localization.back(isArabic))
                 }
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("الترتيب", style = MaterialTheme.typography.labelLarge)
-                    FilterChip(selected = state.sort == MediaSort.NEWEST, onClick = { vm.setSort(MediaSort.NEWEST) }, label = { Text("الأحدث") })
-                    FilterChip(selected = state.sort == MediaSort.OLDEST, onClick = { vm.setSort(MediaSort.OLDEST) }, label = { Text("الأقدم") })
-                }
-                if (partialAccess) {
-                    Text("الوصول محدود للصور المختارة فقط. يمكنك توسيع الإذن من إعدادات التطبيق.", color = Blue, modifier = Modifier.padding(horizontal = 16.dp))
-                    TextButton(onClick = { launcher.launch(needed) }) { Text("تحديث إذن الصور") }
-                }
-                LaunchedEffect(state.filter, state.items.size, state.loading, state.end) {
-                    if (state.filter == MediaFilter.FAVORITES && state.items.isEmpty() && !state.loading && !state.end) vm.loadMore()
-                }
-                var albumMenu by remember { mutableStateOf(false) }
-                Box(Modifier.padding(horizontal = 16.dp)) {
-                    OutlinedButton(onClick = { albumMenu = true }) {
-                        Text(state.albums.firstOrNull { it.id == state.albumId }?.title ?: "جميع الألبومات")
-                        Icon(Icons.Outlined.ArrowDropDown, contentDescription = null)
-                    }
-                    DropdownMenu(expanded = albumMenu, onDismissRequest = { albumMenu = false }) {
-                        DropdownMenuItem(text = { Text("جميع الألبومات") }, onClick = { vm.setAlbum(null); albumMenu = false })
-                        state.albums.forEach { album ->
-                            DropdownMenuItem(text = { Text("${album.title} (${album.count})") },
-                                onClick = { vm.setAlbum(album.id); albumMenu = false })
-                        }
-                    }
-                }
-                val gridState = rememberLazyGridState()
-                LaunchedEffect(gridState, state.items.size, state.loading, state.end, state.filter) {
-                    snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collectLatest { last ->
-                        if (state.items.isNotEmpty() && last >= state.items.lastIndex - 18 && !state.loading && !state.end) vm.loadMore()
-                    }
-                }
-                LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 112.dp), state = gridState, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    itemsIndexed(state.items, key = { _, item -> item.id }) { _, item ->
-                        Box(Modifier.aspectRatio(1f).clickable { selected = item }, contentAlignment = Alignment.BottomEnd) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(ctx).data(item.uri).size(360).crossfade(true).build(),
-                                contentDescription = "صورة أو فيديو",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize().background(Color(0xFFE7EDF5), RoundedCornerShape(4.dp))
-                            )
-                            if (item.video) Icon(Icons.Outlined.PlayCircle, null, tint = Color.White, modifier = Modifier.padding(8.dp))
-                        }
-                    }
-                    if (state.loading) item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
-                    if (state.error != null) item(span = { GridItemSpan(maxLineSpan) }) { Text(state.error ?: "", Modifier.clickable { vm.loadMore() }.padding(18.dp), color = Color.Red) }
-                    if (state.end && state.items.isEmpty() && pickedMedia.isNotEmpty()) {
-                        itemsIndexed(pickedMedia, key = { _, item -> item.id }) { _, item ->
-                            AsyncImage(model = item.uri, contentDescription = "صورة مختارة", modifier = Modifier.aspectRatio(1f).clickable { selected = item }, contentScale = ContentScale.Crop)
-                        }
-                    }
-                    if (state.end && state.items.isEmpty() && pickedMedia.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                        Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(Icons.Outlined.PhotoLibrary, contentDescription = null, tint = Blue, modifier = Modifier.size(56.dp))
-                            Text(if (state.search.isNotBlank()) "لا توجد نتائج مطابقة للبحث" else if (state.filter == MediaFilter.FAVORITES) "لم تضف صورًا للمفضلة بعد" else "لم نجد صورًا في هذا القسم", style = MaterialTheme.typography.titleMedium)
-                            Text("قد لا يحتوي الجهاز على صور، أو قد يكون إذن الوصول محدودًا.", color = Color.Gray)
-                            OutlinedButton(onClick = { launcher.launch(needed) }) { Text("مراجعة إذن الوصول") }
-                            TextButton(onClick = { photoPicker.launch("image/*") }) { Text("اختيار صور من الهاتف") }
-                        }
+            },
+            actions = {
+                if (searchInput.isNotEmpty()) {
+                    IconButton(onClick = { onSearchInputChange("") }) {
+                        Icon(Icons.Outlined.Close, contentDescription = Localization.clearSearch(isArabic))
                     }
                 }
             }
-        }
-        pendingTrash?.let { item ->
-            AlertDialog(onDismissRequest = { pendingTrash = null }, title = { Text("نقل إلى سلة المحذوفات؟") },
-                text = { Text("سيطلب أندرويد موافقتك قبل نقل الملف إلى السلة. لن يتم حذفه نهائيًا هنا.") },
-                confirmButton = { TextButton(onClick = {
-                    pendingTrash = null
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        runCatching {
-                            val request = MediaStore.createTrashRequest(ctx.contentResolver, listOf(item.uri), true)
-                            trashLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(request.intentSender).build())
-                        }
-                    }
-                }) { Text("متابعة") } },
-                dismissButton = { TextButton(onClick = { pendingTrash = null }) { Text("إلغاء") } })
-        }
-        selected?.let { item ->
-            Dialog(onDismissRequest = { selected = null }) {
-                Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(12.dp)) {
-                    if (item.video) {
-                        key(item.uri) {
-                            AndroidView(
-                                factory = { viewContext ->
-                                    android.widget.VideoView(viewContext).apply {
-                                        setVideoURI(item.uri)
-                                        setMediaController(android.widget.MediaController(viewContext).also { it.setAnchorView(this) })
-                                        setOnPreparedListener { player -> player.isLooping = false }
-                                        start()
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth().height(300.dp),
-                                onRelease = { view -> view.stopPlayback() }
+        )
+    } else {
+        TopAppBar(
+            title = {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = Localization.appTitle(isArabic),
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (currentAlbum != null) {
+                            Text(
+                                text = " • ${currentAlbum.title}",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
-                    } else {
-                        AsyncImage(model = item.uri, contentDescription = "معاينة الصورة", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp))
                     }
-                    val isFavorite = remember(item.uri, favoriteRevision) { favorites.contains(item.uri) }
-                    if (showDetails) {
-                        Text(if (item.video) "النوع: فيديو" else "النوع: صورة", Modifier.padding(horizontal = 12.dp))
-                        Text("المعرف: ${item.id}", Modifier.padding(horizontal = 12.dp))
-                        Text("تاريخ الإضافة: ${java.text.DateFormat.getDateInstance().format(java.util.Date(item.date * 1000L))}", Modifier.padding(horizontal = 12.dp))
-                    }
-                    Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { vm.toggleFavorite(item); favoriteRevision++ }) { Text(if (isFavorite) "★ مفضلة" else "☆ للمفضلة") }
-                        TextButton(onClick = {
-                            val i = Intent(Intent.ACTION_VIEW).setDataAndType(item.uri, if (item.video) "video/*" else "image/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            runCatching { ctx.startActivity(i) }
-                        }) { Text("فتح") }
-                        TextButton(onClick = {
-                            val i = Intent(Intent.ACTION_SEND).setType(if (item.video) "video/*" else "image/*").putExtra(Intent.EXTRA_STREAM, item.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            ctx.startActivity(Intent.createChooser(i, "مشاركة"))
-                        }) { Text("مشاركة") }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            TextButton(onClick = { pendingTrash = item }) { Text("إلى السلة") }
-                        }
-                        TextButton(onClick = { showDetails = !showDetails }) { Text("تفاصيل") }
-                        TextButton(onClick = { selected = null; showDetails = false }) { Text("إغلاق") }
+                    Text(
+                        text = Localization.appSubtitle(isArabic),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            actions = {
+                if (currentAlbum != null) {
+                    IconButton(onClick = onClearAlbum) {
+                        Icon(Icons.Outlined.FilterAltOff, contentDescription = "Clear Album Filter")
                     }
                 }
+
+                // Search Toggle
+                IconButton(onClick = { onSearchActiveChange(true) }) {
+                    Icon(Icons.Outlined.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.primary)
+                }
+
+                // Theme Toggle
+                IconButton(onClick = onThemeToggle) {
+                    val icon = when (currentThemeMode) {
+                        ThemeMode.SYSTEM -> Icons.Filled.BrightnessAuto
+                        ThemeMode.LIGHT -> Icons.Filled.LightMode
+                        ThemeMode.DARK -> Icons.Filled.DarkMode
+                    }
+                    Icon(icon, contentDescription = "Toggle Theme", tint = MaterialTheme.colorScheme.onSurface)
+                }
+
+                // Language Toggle (AR / EN)
+                TextButton(onClick = onLanguageToggle) {
+                    Text(
+                        text = if (isArabic) "EN" else "عربي",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                // About / Diagnostics Dialog
+                IconButton(onClick = onAboutClick) {
+                    Icon(Icons.Outlined.Info, contentDescription = "About Pro Gallery X", tint = MaterialTheme.colorScheme.primary)
+                }
+
+                // Refresh Button
+                IconButton(onClick = onRefresh) {
+                    Icon(Icons.Outlined.Refresh, contentDescription = Localization.refresh(isArabic))
+                }
             }
-        }
+        )
     }
 }
