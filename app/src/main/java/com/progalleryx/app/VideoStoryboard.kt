@@ -161,3 +161,91 @@ fun TrimmedClipPlayback(
         if (error) androidx.compose.material3.Text("تعذر تشغيل هذا الملف على الجهاز")
     }
 }
+
+/** Sequential playback of trimmed clips. Uses original files and switches sources at boundaries. */
+@androidx.compose.runtime.Composable
+fun SequentialTimelinePlayback(
+    segments: List<TimelineSegment<android.net.Uri>>,
+    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier
+) {
+    require(segments.size in 2..12)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var index by androidx.compose.runtime.remember(segments) { androidx.compose.runtime.mutableIntStateOf(0) }
+    var playing by androidx.compose.runtime.remember(segments) { androidx.compose.runtime.mutableStateOf(false) }
+    var ready by androidx.compose.runtime.remember(segments) { androidx.compose.runtime.mutableStateOf(false) }
+    var error by androidx.compose.runtime.remember(segments) { androidx.compose.runtime.mutableStateOf(false) }
+    val part = segments[index]
+    val player = androidx.compose.runtime.remember(context) { android.widget.VideoView(context) }
+    androidx.compose.runtime.DisposableEffect(player) {
+        onDispose { player.stopPlayback() }
+    }
+    androidx.compose.runtime.LaunchedEffect(index, segments) {
+        ready = false
+        error = false
+        player.stopPlayback()
+        player.setOnErrorListener { _, _, _ ->
+            error = true
+            playing = false
+            true
+        }
+        player.setOnPreparedListener {
+            player.seekTo(part.sourceStartMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+            ready = true
+            if (playing) player.start()
+        }
+        player.setVideoURI(part.source)
+    }
+    androidx.compose.runtime.LaunchedEffect(playing, index, ready, segments) {
+        while (playing && ready && !error) {
+            kotlinx.coroutines.delay(100L)
+            if (player.currentPosition.toLong() >= part.sourceEndMs || !player.isPlaying) {
+                player.pause()
+                val next = ClipSequenceTimelineRules.nextClipIndex(index, segments.size)
+                if (next != null) {
+                    index = next
+                } else {
+                    playing = false
+                    index = 0
+                }
+                break
+            }
+        }
+    }
+    androidx.compose.foundation.layout.Column(modifier) {
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { player },
+            modifier = androidx.compose.ui.Modifier.fillMaxWidth().height(androidx.compose.ui.unit.Dp(210f))
+        )
+        androidx.compose.material3.Text("المقطع ${index + 1} من ${segments.size} — تشغيل متتابع")
+        androidx.compose.foundation.layout.Row {
+            androidx.compose.material3.OutlinedButton(
+                enabled = !error && ready,
+                onClick = {
+                    if (playing) {
+                        player.pause()
+                        playing = false
+                    } else {
+                        val position = player.currentPosition.toLong()
+                        if (position < part.sourceStartMs || position >= part.sourceEndMs) {
+                            player.seekTo(part.sourceStartMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+                        }
+                        player.start()
+                        playing = true
+                    }
+                }
+            ) { androidx.compose.material3.Text(if (playing) "إيقاف مؤقت" else "تشغيل الكل") }
+            androidx.compose.material3.TextButton(onClick = {
+                playing = false
+                player.pause()
+                index = 0
+                player.seekTo(segments.first().sourceStartMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+            }) { androidx.compose.material3.Text("من البداية") }
+            androidx.compose.material3.TextButton(onClick = {
+                val next = ClipSequenceTimelineRules.nextClipIndex(index, segments.size)
+                if (next != null) index = next else playing = false
+            }) { androidx.compose.material3.Text("التالي") }
+        }
+        if (error) androidx.compose.material3.Text("تعذر تشغيل أحد المقاطع على الجهاز")
+    }
+}
+

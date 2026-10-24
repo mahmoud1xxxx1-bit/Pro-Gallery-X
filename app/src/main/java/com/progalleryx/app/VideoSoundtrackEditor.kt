@@ -4,11 +4,15 @@ import android.content.Context
 import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
+import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
+import androidx.media3.transformer.VideoEncoderSettings
+import androidx.media3.effect.Presentation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -19,10 +23,23 @@ import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-/** Add a separate soundtrack to one video, preserving original source files. */
+/** Add a separate soundtrack to one video, with optional audio mixing, preserving original source files. */
 object VideoSoundtrackEditor {
-    suspend fun export(context: Context, video: Uri, soundtrack: Uri, output: Uri, startMs: Long, endMs: Long, audioOffsetMs: Long = 0L) {
+    suspend fun export(
+        context: Context,
+        video: Uri,
+        soundtrack: Uri,
+        output: Uri,
+        startMs: Long,
+        endMs: Long,
+        audioOffsetMs: Long = 0L,
+        muteOriginalAudio: Boolean = true,
+        bitrate: Int = VideoQualityRules.AUTO,
+        targetHeight: Int = VideoQualityRules.HEIGHT_AUTO
+    ) {
         require(video != soundtrack && output != video && output != soundtrack)
+        require(VideoQualityRules.valid(bitrate))
+        require(VideoQualityRules.validHeight(targetHeight))
         val duration = withContext(Dispatchers.IO) {
             val retriever = android.media.MediaMetadataRetriever()
             try {
@@ -49,16 +66,35 @@ object VideoSoundtrackEditor {
                     val videoItem = MediaItem.Builder().setUri(video)
                         .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder()
                             .setStartPositionMs(startMs).setEndPositionMs(endMs).build()).build()
+                    val videoItemBuilder = EditedMediaItem.Builder(videoItem).setRemoveAudio(muteOriginalAudio)
+                    if (targetHeight > 0) {
+                        videoItemBuilder.setEffects(
+                            Effects(
+                                emptyList(),
+                                listOf(Presentation.createForHeight(targetHeight))
+                            )
+                        )
+                    }
                     val videoSequence = EditedMediaItemSequence.Builder(
-                        listOf(EditedMediaItem.Builder(videoItem).setRemoveAudio(true).build())).build()
+                        listOf(videoItemBuilder.build())
+                    ).build()
                     val audioItem = MediaItem.Builder().setUri(soundtrack)
                         .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder()
                             .setStartPositionMs(audioOffsetMs)
                             .setEndPositionMs(SoundtrackRules.endMs(audioOffsetMs, endMs - startMs, soundtrackDuration)).build()).build()
                     val audioSequence = EditedMediaItemSequence.Builder(
-                        listOf(EditedMediaItem.Builder(audioItem).setRemoveVideo(true).build())).build()
+                        listOf(EditedMediaItem.Builder(audioItem).setRemoveVideo(true).build())
+                    ).build()
                     val composition = Composition.Builder(listOf(videoSequence, audioSequence)).build()
-                    val transformer = Transformer.Builder(context).addListener(object : Transformer.Listener {
+                    val transformerBuilder = Transformer.Builder(context)
+                    if (bitrate != VideoQualityRules.AUTO) {
+                        val encoderFactory = DefaultEncoderFactory.Builder(context)
+                            .setRequestedVideoEncoderSettings(
+                                VideoEncoderSettings.Builder().setBitrate(bitrate).build()
+                            ).build()
+                        transformerBuilder.setEncoderFactory(encoderFactory)
+                    }
+                    val transformer = transformerBuilder.addListener(object : Transformer.Listener {
                         override fun onCompleted(composition: Composition, exportResult: ExportResult) {
                             if (cont.isActive) cont.resume(Unit)
                         }

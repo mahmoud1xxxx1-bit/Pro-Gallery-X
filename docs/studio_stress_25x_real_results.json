@@ -1,0 +1,1212 @@
+{
+  "test": "Studio 25x Navigation Stress Test",
+  "device": "127.0.0.1:5563",
+  "total_cycles": 25,
+  "passed_cycles": 24,
+  "total_crashes": 1,
+  "total_duration_seconds": 724.74,
+  "cycles": [
+    {
+      "cycle": 1,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792852908.3641684
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792852915.4827359
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792852919.3714337
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792852920.2960618
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792852921.8938806
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792852928.3155334
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792852929.631121
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792852935.1953294
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 31.89
+    },
+    {
+      "cycle": 2,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792852942.4916737
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792852944.0534492
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792852946.6454742
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792852947.456525
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792852949.0819314
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792852952.72534
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792852954.05616
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792852958.964437
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 24.39
+    },
+    {
+      "cycle": 3,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792852966.7085586
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792852968.5808465
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792852971.4937606
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792852972.340809
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792852973.788601
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792852977.6619592
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792852979.4480112
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792852983.6186593
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 22.87
+    },
+    {
+      "cycle": 4,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792852993.33384
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853000.1401827
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853002.9896197
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853004.536995
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853006.4322493
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853011.3182192
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853012.5570798
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853019.7162235
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 37.01
+    },
+    {
+      "cycle": 5,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853028.449424
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853030.9950855
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853036.2539275
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853038.2613895
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853040.3790994
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853043.7779012
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853047.460429
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853059.7049873
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 38.58
+    },
+    {
+      "cycle": 6,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853071.96865
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853076.3858457
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853079.000091
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853079.991169
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853081.4108481
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853084.0462096
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853086.086376
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853087.184913
+        }
+      ],
+      "crashes": [
+        "10-24 14:44:26.359   703 11698 E ActivityManager: ANR in com.progalleryx.app (com.progalleryx.app/.MainActivity)"
+      ],
+      "success": false,
+      "duration_seconds": 26.17
+    },
+    {
+      "cycle": 7,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853094.3211148
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853106.3242323
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853108.9007123
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853115.7567902
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853117.8070579
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853127.3823605
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853129.6214614
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853133.802916
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 48.56
+    },
+    {
+      "cycle": 8,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853142.6447084
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853145.172437
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853148.650472
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853149.5167093
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853150.8730073
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853154.3565264
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853155.7195847
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853160.7338748
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 23.73
+    },
+    {
+      "cycle": 9,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853169.3387082
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853170.582633
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853173.7421536
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853174.5878685
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853176.1212165
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853180.1998491
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853181.501311
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853187.1973982
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 26.32
+    },
+    {
+      "cycle": 10,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853195.1838439
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853196.518109
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853199.7421236
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853200.6160316
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853202.0627518
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853207.628137
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853209.833717
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853214.2869895
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 25.87
+    },
+    {
+      "cycle": 11,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853222.1690953
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853223.6465218
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853227.2505977
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853228.1358774
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853229.641124
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853232.52336
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853233.9035897
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853236.997553
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 21.0
+    },
+    {
+      "cycle": 12,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853244.6487224
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853245.847282
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853248.4000728
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853249.2973642
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853250.6528904
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853255.1643338
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853256.51785
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853262.3662198
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 25.91
+    },
+    {
+      "cycle": 13,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853269.4209106
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853271.3768744
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853274.1473958
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853275.023528
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853276.611901
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853280.0013614
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853281.4186363
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853285.5953217
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 22.04
+    },
+    {
+      "cycle": 14,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853293.0286684
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853294.6345255
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853298.4088447
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853299.4882915
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853301.7163515
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853304.9648635
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853307.1455655
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853311.5357454
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 25.14
+    },
+    {
+      "cycle": 15,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853319.6959918
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853321.1256087
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853325.2301087
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853326.1018765
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853327.5236244
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853332.1656492
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853334.761963
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853340.9347627
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 28.56
+    },
+    {
+      "cycle": 16,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853349.140272
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853350.7830327
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853354.051722
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853354.8555624
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853356.466158
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853360.9333181
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853362.9359293
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853368.700056
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 26.81
+    },
+    {
+      "cycle": 17,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853376.3420703
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853378.1731155
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853382.144212
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853383.5988858
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853385.167409
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853388.8003578
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853390.8048115
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853396.3320324
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 26.18
+    },
+    {
+      "cycle": 18,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853405.2881246
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853406.3800716
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853409.6745532
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853410.4984002
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853411.9449677
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853416.8056476
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853418.1767209
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853424.8833969
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 27.75
+    },
+    {
+      "cycle": 19,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853432.9232235
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853435.7198365
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853438.841893
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853439.8211396
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853441.243082
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853446.4052215
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853448.0993059
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853454.0482545
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 27.68
+    },
+    {
+      "cycle": 20,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853461.826219
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853463.1434975
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853465.9359713
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853466.8280613
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853468.3356035
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853473.8483386
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853475.3325143
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853481.5754232
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 27.11
+    },
+    {
+      "cycle": 21,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853488.908959
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853490.4144475
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853493.5434048
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853494.5850203
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853495.9988663
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853500.7799935
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853502.4588294
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853508.889241
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 27.24
+    },
+    {
+      "cycle": 22,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853515.8658898
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853518.0233717
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853521.525774
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853522.5295925
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853524.0575876
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853530.1070833
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853531.89769
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853535.7370055
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 26.14
+    },
+    {
+      "cycle": 23,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853543.0785615
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853544.9022224
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853549.3810806
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853550.5374405
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853551.9730363
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853558.53015
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853559.9097059
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853564.6678882
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 28.31
+    },
+    {
+      "cycle": 24,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853572.0367513
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853573.302977
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853576.8837123
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853580.2295542
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853581.88274
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853588.5936093
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853590.0063066
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853595.0175955
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 28.97
+    },
+    {
+      "cycle": 25,
+      "actions": [
+        {
+          "target": "PDF Studio",
+          "action": "open",
+          "timestamp": 1792853601.5978076
+        },
+        {
+          "target": "PDF Studio",
+          "action": "close",
+          "timestamp": 1792853603.3014467
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "open",
+          "timestamp": 1792853606.5011494
+        },
+        {
+          "target": "Duplicate Scanner",
+          "action": "close",
+          "timestamp": 1792853607.4139218
+        },
+        {
+          "target": "Photo Studio (Real JPEG)",
+          "action": "open",
+          "timestamp": 1792853608.94154
+        },
+        {
+          "target": "Photo Studio",
+          "action": "close",
+          "timestamp": 1792853615.9961193
+        },
+        {
+          "target": "Video Studio (Real MP4)",
+          "action": "open",
+          "timestamp": 1792853617.7785952
+        },
+        {
+          "target": "Video Studio",
+          "action": "close",
+          "timestamp": 1792853627.143271
+        }
+      ],
+      "crashes": [],
+      "success": true,
+      "duration_seconds": 32.07
+    }
+  ]
+}

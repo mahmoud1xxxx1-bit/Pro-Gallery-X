@@ -1,6 +1,9 @@
 package com.progalleryx.app
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -35,22 +38,22 @@ class VideoExportRulesTest {
             Triple("first", 1000L, 3000L),
             Triple("second", 500L, 4000L)
         ))
-        org.junit.Assert.assertEquals(0L, timeline[0].timelineStartMs)
-        org.junit.Assert.assertEquals(2000L, timeline[1].timelineStartMs)
-        org.junit.Assert.assertEquals(5500L, ClipSequenceTimelineRules.totalDurationMs(timeline))
-        org.junit.Assert.assertEquals("second", ClipSequenceTimelineRules.segmentAt(timeline, 2000L)?.source)
-        org.junit.Assert.assertNull(ClipSequenceTimelineRules.segmentAt(timeline, 5500L))
-        org.junit.Assert.assertEquals("01:01:01", ClipSequenceTimelineRules.formatTime(3661000L))
+        assertEquals(0L, timeline[0].timelineStartMs)
+        assertEquals(2000L, timeline[1].timelineStartMs)
+        assertEquals(5500L, ClipSequenceTimelineRules.totalDurationMs(timeline))
+        assertEquals("second", ClipSequenceTimelineRules.segmentAt(timeline, 2000L)?.source)
+        assertNull(ClipSequenceTimelineRules.segmentAt(timeline, 5500L))
+        assertEquals("01:01:01", ClipSequenceTimelineRules.formatTime(3661000L))
     }
 
     @Test fun timelineRejectsDuplicatesShortClipsAndOverflow() {
-        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+        assertThrows(IllegalArgumentException::class.java) {
             ClipSequenceTimelineRules.build(listOf(Triple("a", 0L, 499L), Triple("b", 0L, 1000L)))
         }
-        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+        assertThrows(IllegalArgumentException::class.java) {
             ClipSequenceTimelineRules.build(listOf(Triple("a", 0L, 1000L), Triple("a", 0L, 1000L)))
         }
-        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+        assertThrows(IllegalArgumentException::class.java) {
             ClipSequenceTimelineRules.build(listOf(Triple("a", 0L, Long.MAX_VALUE), Triple("b", 0L, 1000L)))
         }
     }
@@ -59,57 +62,90 @@ class VideoExportRulesTest {
         val clips = ClipSequenceTimelineRules.build(listOf(
             Triple("first", 1000L, 3000L), Triple("second", 500L, 4000L)
         ))
-        org.junit.Assert.assertEquals("first" to 1000L, ClipSequenceTimelineRules.sourcePositionAt(clips, 0L))
-        org.junit.Assert.assertEquals("first" to 2999L, ClipSequenceTimelineRules.sourcePositionAt(clips, 1999L))
-        org.junit.Assert.assertEquals("second" to 500L, ClipSequenceTimelineRules.sourcePositionAt(clips, 2000L))
-        org.junit.Assert.assertEquals("second" to 3999L, ClipSequenceTimelineRules.sourcePositionAt(clips, 5500L))
-        org.junit.Assert.assertEquals(1, ClipSequenceTimelineRules.clipIndexAt(clips, 5500L))
-        org.junit.Assert.assertNull(ClipSequenceTimelineRules.sourcePositionAt(clips, -1L))
-        org.junit.Assert.assertNull(ClipSequenceTimelineRules.sourcePositionAt(emptyList<TimelineSegment<String>>(), 0L))
+        assertEquals("first" to 1000L, ClipSequenceTimelineRules.sourcePositionAt(clips, 0L))
+        assertEquals("first" to 2999L, ClipSequenceTimelineRules.sourcePositionAt(clips, 1999L))
+        assertEquals("second" to 500L, ClipSequenceTimelineRules.sourcePositionAt(clips, 2000L))
+        assertEquals("second" to 3999L, ClipSequenceTimelineRules.sourcePositionAt(clips, 5500L))
+        assertEquals(1, ClipSequenceTimelineRules.clipIndexAt(clips, 5500L))
+        assertNull(ClipSequenceTimelineRules.sourcePositionAt(clips, -1L))
+        assertNull(ClipSequenceTimelineRules.sourcePositionAt(emptyList<TimelineSegment<String>>(), 0L))
     }
 
     @Test fun bulkTrimPresetsPreserveValidWindows() {
         val durations = mapOf("a" to 12000L, "b" to 3000L)
         val rules = ClipSequenceTimelineRules
-        org.junit.Assert.assertEquals(0L to 5000L, rules.batchRanges(durations, ClipSequenceTimelineRules.TrimPreset.FIRST_FIVE_SECONDS)["a"])
-        org.junit.Assert.assertEquals(0L to 3000L, rules.batchRanges(durations, ClipSequenceTimelineRules.TrimPreset.FIRST_FIVE_SECONDS)["b"])
-        org.junit.Assert.assertEquals(7000L to 12000L, rules.batchRanges(durations, ClipSequenceTimelineRules.TrimPreset.LAST_FIVE_SECONDS)["a"])
-        org.junit.Assert.assertEquals(0L to 3000L, rules.batchRanges(durations, ClipSequenceTimelineRules.TrimPreset.LAST_FIVE_SECONDS)["b"])
-        org.junit.Assert.assertEquals(12000L, rules.totalSelectedDurationMs(listOf(0L to 5000L, 0L to 7000L)))
+        assertEquals(0L to 5000L, rules.batchRanges(durations, ClipSequenceTimelineRules.TrimPreset.FIRST_FIVE_SECONDS)["a"])
+        assertEquals(0L to 3000L, rules.batchRanges(durations, ClipSequenceTimelineRules.TrimPreset.FIRST_FIVE_SECONDS)["b"])
+        assertEquals(7000L to 12000L, rules.batchRanges(durations, ClipSequenceTimelineRules.TrimPreset.LAST_FIVE_SECONDS)["a"])
+        assertEquals(0L to 3000L, rules.batchRanges(durations, ClipSequenceTimelineRules.TrimPreset.LAST_FIVE_SECONDS)["b"])
+        assertEquals(12000L, rules.totalSelectedDurationMs(listOf(0L to 5000L, 0L to 7000L)))
     }
 
     @Test fun bulkTrimsRejectBadDurationsAndWindows() {
-        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+        assertThrows(IllegalArgumentException::class.java) {
             ClipSequenceTimelineRules.batchRanges(mapOf("a" to 499L), ClipSequenceTimelineRules.TrimPreset.FULL)
         }
-        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+        assertThrows(IllegalArgumentException::class.java) {
             ClipSequenceTimelineRules.totalSelectedDurationMs(listOf(0L to 499L, 0L to 2000L))
         }
     }
 
     @Test fun timelineEditsPreserveClipIdentityAndOrdering() {
         val original = listOf("a", "b", "c")
-        org.junit.Assert.assertEquals(listOf("b", "c", "a"), ClipSequenceTimelineRules.moveClip(original, 0, 2))
-        org.junit.Assert.assertEquals(listOf("a", "c"), ClipSequenceTimelineRules.removeClip(original, 1))
-        org.junit.Assert.assertEquals(original, ClipSequenceTimelineRules.moveClip(original, 1, 1))
-        org.junit.Assert.assertEquals(listOf("a", "b", "c"), original)
-        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+        assertEquals(listOf("b", "c", "a"), ClipSequenceTimelineRules.moveClip(original, 0, 2))
+        assertEquals(listOf("a", "c"), ClipSequenceTimelineRules.removeClip(original, 1))
+        assertEquals(original, ClipSequenceTimelineRules.moveClip(original, 1, 1))
+        assertEquals(listOf("a", "b", "c"), original)
+        assertThrows(IllegalArgumentException::class.java) {
             ClipSequenceTimelineRules.moveClip(original, -1, 0)
         }
-        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+        assertThrows(IllegalArgumentException::class.java) {
             ClipSequenceTimelineRules.removeClip(original, 3)
         }
     }
 
     @Test fun selectedTimelineDurationAndCursorRemainBounded() {
         val clips = listOf(Triple("a", 1000L, 3000L), Triple("b", 0L, 900L))
-        org.junit.Assert.assertEquals(2900L, ClipSequenceTimelineRules.selectedDurationMs(clips))
-        org.junit.Assert.assertEquals(899L, ClipSequenceTimelineRules.recommendedCursorAfterRemoval(5000L, 900L))
-        org.junit.Assert.assertEquals(0L, ClipSequenceTimelineRules.recommendedCursorAfterRemoval(-1L, 900L))
-        org.junit.Assert.assertEquals(0L, ClipSequenceTimelineRules.recommendedCursorAfterRemoval(900L, 0L))
-        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+        assertEquals(2900L, ClipSequenceTimelineRules.selectedDurationMs(clips))
+        assertEquals(899L, ClipSequenceTimelineRules.recommendedCursorAfterRemoval(5000L, 900L))
+        assertEquals(0L, ClipSequenceTimelineRules.recommendedCursorAfterRemoval(-1L, 900L))
+        assertEquals(0L, ClipSequenceTimelineRules.recommendedCursorAfterRemoval(900L, 0L))
+        assertThrows(IllegalArgumentException::class.java) {
             ClipSequenceTimelineRules.selectedDurationMs(listOf(Triple("a", 0L, 1000L)))
         }
     }
 
+    @Test fun continuousPreviewAdvancesAndTerminatesAtBoundaries() {
+        assertEquals(1, ClipSequenceTimelineRules.nextClipIndex(0, 3))
+        assertEquals(2, ClipSequenceTimelineRules.nextClipIndex(1, 3))
+        assertNull(ClipSequenceTimelineRules.nextClipIndex(2, 3))
+        assertNull(ClipSequenceTimelineRules.previousClipIndex(0, 3))
+        assertEquals(0, ClipSequenceTimelineRules.previousClipIndex(1, 3))
+        assertEquals(1, ClipSequenceTimelineRules.previousClipIndex(2, 3))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.nextClipIndex(-1, 3)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.nextClipIndex(0, 1)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.previousClipIndex(0, 1)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.previousClipIndex(-1, 3)
+        }
+    }
+
+    @Test fun continuousPreviewAdvancesAndTerminatesAtLastClip() {
+        assertEquals(1, ClipSequenceTimelineRules.nextClipIndex(0, 3))
+        assertEquals(2, ClipSequenceTimelineRules.nextClipIndex(1, 3))
+        assertNull(ClipSequenceTimelineRules.nextClipIndex(2, 3))
+        assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.nextClipIndex(-1, 3)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ClipSequenceTimelineRules.nextClipIndex(0, 1)
+        }
+    }
 }
