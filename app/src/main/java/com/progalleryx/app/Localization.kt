@@ -74,5 +74,14 @@ object Localization {
     fun typePhoto(isAr: Boolean) = if (isAr) "صورة" else "Photo"
     fun typeVideo(isAr: Boolean) = if (isAr) "فيديو" else "Video"
 
+    fun studioHubTitle(isAr: Boolean) = if (isAr) "استوديو الإبداع" else "Creative Studio"
+    fun photoStudioTitle(isAr: Boolean) = if (isAr) "استوديو الصور" else "Photo Studio"
+    fun videoStudioTitle(isAr: Boolean) = if (isAr) "استوديو الفيديو" else "Video Studio"
+    fun pdfSuiteTitle(isAr: Boolean) = if (isAr) "أدوات المستندات وPDF" else "PDF Document Suite"
+    fun storageCleanerTitle(isAr: Boolean) = if (isAr) "منظف ومحرر التخزين" else "Storage & Duplicate Cleaner"
+
+    fun compareHold(isAr: Boolean) = if (isAr) "قبل / بعد" else "Before / After"
+    fun saveToGallery(isAr: Boolean) = if (isAr) "حفظ في المعرض" else "Save to Gallery"
+
     fun errorUnsupported(isAr: Boolean) = if (isAr) "تعذر تشغيل هذا الملف على الجهاز" else "Unable to play this file on device"
 }

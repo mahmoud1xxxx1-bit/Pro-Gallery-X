@@ -146,6 +146,37 @@ fun ProGalleryApp(vm: GalleryViewModel = viewModel()) {
     var directEditingPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var directEditingVideoUri by remember { mutableStateOf<Uri?>(null) }
 
+    // System Intent resolution (ACTION_VIEW, ACTION_EDIT, ACTION_SEND)
+    val activity = context as? Activity
+    LaunchedEffect(activity?.intent) {
+        val intent = activity?.intent ?: return@LaunchedEffect
+        val action = intent.action
+        val data = intent.data
+        val mimeType = intent.type ?: data?.let { context.contentResolver.getType(it) }
+
+        if ((action == Intent.ACTION_VIEW || action == Intent.ACTION_EDIT) && data != null) {
+            if (mimeType?.startsWith("image/") == true) {
+                directEditingPhotoUri = data
+            } else if (mimeType?.startsWith("video/") == true) {
+                directEditingVideoUri = data
+            }
+        } else if (action == Intent.ACTION_SEND) {
+            val streamUri = if (Build.VERSION.SDK_INT >= 33) {
+                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+            }
+            if (streamUri != null) {
+                if (mimeType?.startsWith("image/") == true) {
+                    directEditingPhotoUri = streamUri
+                } else if (mimeType?.startsWith("video/") == true) {
+                    directEditingVideoUri = streamUri
+                }
+            }
+        }
+    }
+
     var searchActive by remember { mutableStateOf(false) }
     var searchInput by remember { mutableStateOf("") }
     LaunchedEffect(searchInput) {
@@ -562,7 +593,10 @@ fun ProGalleryApp(vm: GalleryViewModel = viewModel()) {
                                         }
 
                                         GalleryTab.STUDIO -> {
-                                            OfflineToolsPanel(onClose = { currentTab = GalleryTab.PICTURES })
+                                            StudioHubScreen(
+                                                onClose = { currentTab = GalleryTab.PICTURES },
+                                                isArabic = isArabic
+                                            )
                                         }
                                     }
                                 }

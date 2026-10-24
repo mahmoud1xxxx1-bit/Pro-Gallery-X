@@ -1,18 +1,19 @@
 package com.progalleryx.app
 
-import android.net.Uri
 import android.graphics.BitmapFactory
 import android.media.ExifInterface
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -27,10 +28,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class StudioToolTab {
     TUNE,
@@ -85,6 +89,7 @@ fun PhotoEditorSection(
     var showTextDialog by remember { mutableStateOf(false) }
     var editingTextLayer by remember { mutableStateOf<InteractiveTextLayer?>(null) }
     var showStickerDialog by remember { mutableStateOf(false) }
+    var isComparing by remember { mutableStateOf(false) }
 
     // Undo / Redo stacks
     var undoStack by remember { mutableStateOf<List<PhotoStudioProject>>(emptyList()) }
@@ -183,177 +188,7 @@ fun PhotoEditorSection(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        // 1. Studio Top Navigation Bar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (onClose != null) {
-                IconButton(onClick = onClose) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "رجوع")
-                }
-            }
-            Text(
-                "استوديو تحرير الصور",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                // Undo
-                IconButton(
-                    onClick = {
-                        val previous = undoStack.last()
-                        redoStack = (redoStack + currentProject()).takeLast(30)
-                        undoStack = undoStack.dropLast(1)
-                        applyProject(previous)
-                    },
-                    enabled = !busy && undoStack.isNotEmpty()
-                ) {
-                    Icon(Icons.Default.Undo, contentDescription = "تراجع")
-                }
-                // Redo
-                IconButton(
-                    onClick = {
-                        val next = redoStack.last()
-                        redoStack = redoStack.dropLast(1)
-                        undoStack = (undoStack + currentProject()).takeLast(30)
-                        applyProject(next)
-                    },
-                    enabled = !busy && redoStack.isNotEmpty()
-                ) {
-                    Icon(Icons.Default.Redo, contentDescription = "إعادة")
-                }
-                // Reset
-                IconButton(
-                    onClick = {
-                        snapshot()
-                        brightness = 0f; contrast = 1f; saturation = 1f; temperature = 0f; tint = 0f
-                        rotation = 0; flipHorizontal = false; flipVertical = false
-                        cropRatio = 0f; cropX = 0.5f; cropY = 0.5f
-                        selectedPresetId = PhotoFilterPresets.ORIGINAL.id
-                        textLayers = emptyList(); stickerLayers = emptyList(); brushStrokes = emptyList()
-                        activeLayerId = null
-                    },
-                    enabled = !busy && editSource != null
-                ) {
-                    Icon(Icons.Default.RestartAlt, contentDescription = "إعادة الضبط")
-                }
-            }
-        }
-
-        // Selection buttons (Pick photo / Batch)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = { editInput.launch("image/*") },
-                enabled = !busy,
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(Modifier.width(4.dp))
-                Text(if (editSource == null) "اختيار صورة للتحرير" else "تغيير الصورة")
-            }
-
-            OutlinedButton(
-                onClick = { batchInput.launch("image/*") },
-                enabled = !busy,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("تعديل دفعة صور (2–25)")
-            }
-        }
-
-        // Batch processing card
-        if (batchSources.isNotEmpty()) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("المعالجة الجماعية لـ ${batchSources.size} صور", style = MaterialTheme.typography.titleMedium)
-                    Text("سيتم تطبيق التعديلات الحالية على كل الصور وحفظها في المعرض.", style = MaterialTheme.typography.bodySmall)
-
-                    if (batchProgress != null) {
-                        LinearProgressIndicator(
-                            progress = { batchProgress!!.first.toFloat() / batchProgress!!.second.toFloat() },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Text("جاري معالجة الصورة ${batchProgress!!.first} من ${batchProgress!!.second}")
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = {
-                                onBusyChange(true)
-                                scope.launch {
-                                    val adj = currentProject().toLegacyAdjustments().copy(
-                                        jpegQuality = jpegQuality,
-                                        maxDimension = maxDimension
-                                    )
-                                    var exportedCount = 0
-                                    try {
-                                        for (i in batchSources.indices) {
-                                            batchProgress = (i + 1) to batchSources.size
-                                            val src = batchSources[i]
-                                            val fileName = PhotoBatchRules.generateBatchFileName(i, "batch")
-                                            val values = android.content.ContentValues().apply {
-                                                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, fileName)
-                                                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                                    put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/ProGalleryX")
-                                                    put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
-                                                }
-                                            }
-                                            val destUri = runCatching {
-                                                context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                                            }.getOrNull() ?: Uri.fromFile(java.io.File(context.cacheDir, fileName))
-
-                                            PhotoEditor.export(context, src, destUri, adj)
-
-                                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && destUri.scheme == "content") {
-                                                values.clear()
-                                                values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
-                                                context.contentResolver.update(destUri, values, null, null)
-                                            }
-                                            exportedCount++
-                                        }
-                                        onMessageChange("اكتمل تصدير الدفعة: تم حفظ $exportedCount صورة إلى المعرض بنجاح")
-                                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                                        onMessageChange("أُلغيت معالجة الدفعة")
-                                        throw cancelled
-                                    } catch (error: Exception) {
-                                        onMessageChange("خطأ أثناء معالجة الدفعة: ${error.localizedMessage}")
-                                    } finally {
-                                        batchProgress = null
-                                        onBusyChange(false)
-                                    }
-                                }
-                            },
-                            enabled = !busy && batchProgress == null
-                        ) {
-                            Text("تطبيق وحفظ الدفعة")
-                        }
-
-                        OutlinedButton(
-                            onClick = { batchSources = emptyList() },
-                            enabled = !busy && batchProgress == null
-                        ) {
-                            Text("إلغاء الدفعة")
-                        }
-                    }
-                }
-            }
-        }
-
-        // Read the source's intrinsic dimensions off the UI thread. A fixed 4:3
-    // workspace distorts normalized text/sticker positions on portrait photos.
+    // Determine intrinsic aspect ratio of the image
     var intrinsicAspect by remember(editSource) { mutableFloatStateOf(1f) }
     LaunchedEffect(editSource) {
         val source = editSource ?: return@LaunchedEffect
@@ -382,71 +217,357 @@ fun PhotoEditorSection(
         }
     }
 
-    // Active Photo Workspace Canvas
-        if (editSource != null) {
-            val photoMatrix = remember(brightness, contrast, saturation, temperature, tint) {
-                android.graphics.ColorMatrix().apply {
-                    setSaturation(saturation)
-                    postConcat(android.graphics.ColorMatrix(PhotoColorRules.contrastBrightness(contrast, brightness)))
-                    postConcat(android.graphics.ColorMatrix(PhotoColorRules.temperatureTint(temperature, tint)))
+    if (editSource == null) {
+        // Welcoming Empty State Studio
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onClose != null) {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "رجوع")
+                    }
                 }
+                Text(
+                    "استوديو الصور الاحترافي",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.width(48.dp))
             }
 
-            // Visual Frame Container
+            // Hero Pick Button Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
-                shape = RoundedCornerShape(16.dp)
+                    .clickable(enabled = !busy) { editInput.launch("image/*") },
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                )
             ) {
-                BoxWithConstraints(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(320.dp)
-                        .background(Color(0xFF14181D)),
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        Icons.Default.AddPhotoAlternate,
+                        contentDescription = null,
+                        modifier = Modifier.size(56.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "اختر صورة من المعرض للبدء",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "تحرير احترافي، فلاتر سينمائية، ملصقات ونصوص تفاعلية مع تحكم كامل باللمس.",
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = { editInput.launch("image/*") },
+                        enabled = !busy
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("فتح المعرض")
+                    }
+                }
+            }
+
+            // Batch Processing Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("تعديل دفعة صور (Batch)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("تطبيق التعديلات والفلاتر على عدة صور بنقرة واحدة", style = MaterialTheme.typography.bodySmall)
+                        }
+                        OutlinedButton(
+                            onClick = { batchInput.launch("image/*") },
+                            enabled = !busy
+                        ) {
+                            Text("اختيار (2–25)")
+                        }
+                    }
+
+                    if (batchSources.isNotEmpty()) {
+                        HorizontalDivider()
+                        Text("تم اختيار ${batchSources.size} صور للمعالجة الجماعية")
+                        if (batchProgress != null) {
+                            LinearProgressIndicator(
+                                progress = { batchProgress!!.first.toFloat() / batchProgress!!.second.toFloat() },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text("معالجة الصورة ${batchProgress!!.first} من ${batchProgress!!.second}")
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    onBusyChange(true)
+                                    scope.launch {
+                                        val adj = currentProject().toLegacyAdjustments().copy(
+                                            jpegQuality = jpegQuality,
+                                            maxDimension = maxDimension
+                                        )
+                                        var count = 0
+                                        try {
+                                            for (i in batchSources.indices) {
+                                                batchProgress = (i + 1) to batchSources.size
+                                                val src = batchSources[i]
+                                                val fileName = PhotoBatchRules.generateBatchFileName(i, "batch")
+                                                val values = android.content.ContentValues().apply {
+                                                    put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                                                    put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                                        put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/ProGalleryX")
+                                                        put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+                                                    }
+                                                }
+                                                val dest = runCatching {
+                                                    context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                                                }.getOrNull() ?: Uri.fromFile(java.io.File(context.cacheDir, fileName))
+
+                                                PhotoEditor.export(context, src, dest, adj)
+
+                                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && dest.scheme == "content") {
+                                                    values.clear()
+                                                    values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
+                                                    context.contentResolver.update(dest, values, null, null)
+                                                }
+                                                count++
+                                            }
+                                            onMessageChange("تم تصدير $count صور بنجاح إلى المعرض")
+                                        } catch (e: Exception) {
+                                            onMessageChange("خطأ أثناء معالجة الدفعة: ${e.localizedMessage}")
+                                        } finally {
+                                            batchProgress = null
+                                            onBusyChange(false)
+                                        }
+                                    }
+                                },
+                                enabled = !busy && batchProgress == null
+                            ) {
+                                Text("تطبيق وتصدير الكل")
+                            }
+                            OutlinedButton(
+                                onClick = { batchSources = emptyList() },
+                                enabled = !busy && batchProgress == null
+                            ) {
+                                Text("إلغاء")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Feature Guide Cards
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("مميزات استوديو الصور الاحترافي", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("• تحريك وتكبير وتدوير النصوص والملصقات مباشرة بإصبعين على الصورة.")
+                    Text("• خطوط إرشادية تلقائية (Magnetic Snap) عند المحاذاة مع المنتصف أو الزوايا.")
+                    Text("• استيراد ملصقات خاصة من جهازك بصيغة PNG شفافة.")
+                    Text("• رسم بالفرشاة الناعمة (Bézier Smoothing) مع خيارات الشفافية والممحاة.")
+                    Text("• زر 'قبل / بعد' بالضغط المطول لمقارنة الصورة مع الأصل في أي لحظة.")
+                }
+            }
+        }
+    } else {
+        // Active Editing Full-Screen Workspace (Non-scrolling root column)
+        val photoMatrix = remember(brightness, contrast, saturation, temperature, tint) {
+            android.graphics.ColorMatrix().apply {
+                setSaturation(saturation)
+                postConcat(android.graphics.ColorMatrix(PhotoColorRules.contrastBrightness(contrast, brightness)))
+                postConcat(android.graphics.ColorMatrix(PhotoColorRules.temperatureTint(temperature, tint)))
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            // 1. Top Navigation Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onClose != null) {
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "رجوع")
+                        }
+                    }
+                    Text(
+                        "استوديو الصور",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Hold to Compare Button
+                    FilledTonalButton(
+                        onClick = { },
+                        modifier = Modifier.pointerInput(Unit) {
+                            detectTapGestures(
+                                onPress = {
+                                    isComparing = true
+                                    tryAwaitRelease()
+                                    isComparing = false
+                                }
+                            )
+                        },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.Compare, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            if (isComparing) "الأصل" else "قبل / بعد",
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+
+                    // Undo
+                    IconButton(
+                        onClick = {
+                            val previous = undoStack.last()
+                            redoStack = (redoStack + currentProject()).takeLast(30)
+                            undoStack = undoStack.dropLast(1)
+                            applyProject(previous)
+                        },
+                        enabled = !busy && undoStack.isNotEmpty()
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "تراجع")
+                    }
+
+                    // Redo
+                    IconButton(
+                        onClick = {
+                            val next = redoStack.last()
+                            redoStack = redoStack.dropLast(1)
+                            undoStack = (undoStack + currentProject()).takeLast(30)
+                            applyProject(next)
+                        },
+                        enabled = !busy && redoStack.isNotEmpty()
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "إعادة")
+                    }
+
+                    // Reset
+                    IconButton(
+                        onClick = {
+                            snapshot()
+                            brightness = 0f; contrast = 1f; saturation = 1f; temperature = 0f; tint = 0f
+                            rotation = 0; flipHorizontal = false; flipVertical = false
+                            cropRatio = 0f; cropX = 0.5f; cropY = 0.5f
+                            selectedPresetId = PhotoFilterPresets.ORIGINAL.id
+                            textLayers = emptyList(); stickerLayers = emptyList(); brushStrokes = emptyList()
+                            activeLayerId = null
+                        },
+                        enabled = !busy
+                    ) {
+                        Icon(Icons.Default.RestartAlt, contentDescription = "إعادة الضبط")
+                    }
+
+                    // Change Photo
+                    IconButton(
+                        onClick = { editInput.launch("image/*") },
+                        enabled = !busy
+                    ) {
+                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = "تغيير الصورة")
+                    }
+                }
+            }
+
+            // 2. Full-Viewport Canvas Workspace (fills remaining vertical space)
+            BoxWithConstraints(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .background(Color(0xFF0C0F12)),
+                contentAlignment = Alignment.Center
+            ) {
+                val rotatedAspect = if (rotation == 90 || rotation == 270) 1f / intrinsicAspect.coerceAtLeast(0.01f) else intrinsicAspect
+                val frameAspect = (if (cropRatio > 0f) cropRatio else rotatedAspect).coerceIn(0.1f, 10f)
+
+                // Fit entire photo inside constraints while maximizing area
+                val availableWidth = maxWidth * 0.98f
+                val availableHeight = maxHeight * 0.98f
+                val imageWidth = minOf(availableWidth, availableHeight * frameAspect)
+                val imageHeight = imageWidth / frameAspect
+
+                Box(
+                    modifier = Modifier
+                        .width(imageWidth)
+                        .height(imageHeight)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black),
                     contentAlignment = Alignment.Center
                 ) {
-                    val rotatedAspect = if (rotation == 90 || rotation == 270) 1f / intrinsicAspect.coerceAtLeast(0.01f) else intrinsicAspect
-                    val frameAspect = (if (cropRatio > 0f) cropRatio else rotatedAspect).coerceIn(0.1f, 10f)
-                    // Fit the entire transformed image inside BOTH viewport bounds.
-                    // A height-first aspectRatio modifier can overflow narrow devices.
-                    val availableWidth = maxWidth * 0.96f
-                    val availableHeight = maxHeight * 0.94f
-                    val imageWidth = minOf(availableWidth, availableHeight * frameAspect)
-                    val imageHeight = imageWidth / frameAspect
-
-                    Box(
+                    // Base Photo
+                    AsyncImage(
+                        model = editSource,
+                        contentDescription = "معاينة الصورة",
+                        colorFilter = if (isComparing) null else ColorFilter.colorMatrix(ColorMatrix(photoMatrix.array.copyOf())),
+                        contentScale = if (isComparing || cropRatio == 0f) ContentScale.Fit else ContentScale.Crop,
+                        alignment = if (isComparing || cropRatio == 0f) Alignment.Center else androidx.compose.ui.BiasAlignment(cropX * 2f - 1f, cropY * 2f - 1f),
                         modifier = Modifier
-                            .width(imageWidth)
-                            .height(imageHeight)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Background Photo
-                        AsyncImage(
-                            model = editSource,
-                            contentDescription = "معاينة الصورة",
-                            colorFilter = ColorFilter.colorMatrix(ColorMatrix(photoMatrix.array.copyOf())),
-                            contentScale = if (cropRatio == 0f) ContentScale.Fit else ContentScale.Crop,
-                            alignment = if (cropRatio == 0f) Alignment.Center else androidx.compose.ui.BiasAlignment(cropX * 2f - 1f, cropY * 2f - 1f),
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .pointerInput(cropRatio, brushMode) {
-                                    if (cropRatio != 0f && !brushMode) {
-                                        detectDragGestures(
-                                            onDragStart = { snapshot() },
-                                            onDrag = { change, drag ->
-                                                change.consume()
-                                                cropX = (cropX - drag.x / size.width.toFloat()).coerceIn(0f, 1f)
-                                                cropY = (cropY - drag.y / size.height.toFloat()).coerceIn(0f, 1f)
-                                            }
-                                        )
-                                    }
+                            .fillMaxSize()
+                            .pointerInput(cropRatio, brushMode) {
+                                if (cropRatio != 0f && !brushMode) {
+                                    detectDragGestures(
+                                        onDragStart = { snapshot() },
+                                        onDrag = { change, drag ->
+                                            change.consume()
+                                            cropX = (cropX - drag.x / size.width.toFloat()).coerceIn(0f, 1f)
+                                            cropY = (cropY - drag.y / size.height.toFloat()).coerceIn(0f, 1f)
+                                        }
+                                    )
                                 }
-                        )
+                            }
+                    )
 
-                        // Direct Interactive Layer Canvas Overlay
+                    // Interactive Touch Layer Overlay (Hidden while holding compare)
+                    if (!isComparing) {
                         InteractiveLayerCanvas(
                             modifier = Modifier.fillMaxSize(),
                             textLayers = textLayers,
@@ -509,11 +630,27 @@ fun PhotoEditorSection(
                                 }
                             }
                         )
+                    } else {
+                        // "Comparing Original" Floating Pill Badge
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 12.dp),
+                            shape = RoundedCornerShape(percent = 50),
+                            color = Color.Black.copy(alpha = 0.75f)
+                        ) {
+                            Text(
+                                "المعاينة الأصلية (قبل التعديل)",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            )
+                        }
                     }
                 }
             }
 
-            // 2. Studio Tool Category Tabs (Snapseed / Samsung Gallery Style)
+            // 3. Category Tabs Bar
             ScrollableTabRow(
                 selectedTabIndex = activeToolTab.ordinal,
                 edgePadding = 8.dp,
@@ -563,15 +700,17 @@ fun PhotoEditorSection(
                 )
             }
 
-            // 3. Contextual Controls Body
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            // 4. Contextual Bottom Toolbar (Fixed bounded height with internal vertical scroll)
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 160.dp, max = 220.dp),
+                tonalElevation = 4.dp
             ) {
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
                         .padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -621,7 +760,7 @@ fun PhotoEditorSection(
                         }
 
                         StudioToolTab.FILTERS -> {
-                            Text("الفلاتر الجاهزة", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text("الفلاتر السينمائية الجاهزة", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -669,9 +808,9 @@ fun PhotoEditorSection(
                             }
 
                             if (textLayers.isEmpty()) {
-                                Text("لا توجد طبقات نصوص. اضغط على 'إضافة نص' لكتابة نص جديد على الصورة.", style = MaterialTheme.typography.bodySmall)
+                                Text("اضغط 'إضافة نص' لكتابة نص عربي أو إنجليزي مع خطوط وخلفيات وظلال.", style = MaterialTheme.typography.bodySmall)
                             } else {
-                                textLayers.forEachIndexed { index, layer ->
+                                textLayers.forEach { layer ->
                                     val isSelected = activeLayerId == layer.id
                                     Surface(
                                         modifier = Modifier
@@ -736,14 +875,13 @@ fun PhotoEditorSection(
                                 ) {
                                     Icon(Icons.Default.Add, contentDescription = null)
                                     Spacer(Modifier.width(4.dp))
-                                    Text("إضافة ملصق")
+                                    Text("مكتبة الملصقات")
                                 }
                             }
 
                             if (stickerLayers.isEmpty()) {
-                                Text("لا توجد ملصقات مضافة. اضغط 'إضافة ملصق' لإضافة رموز تعبيرية أو أشكال.", style = MaterialTheme.typography.bodySmall)
+                                Text("يمكنك إضافة رموز تعبيرية، قلوب، أسهم، أشكال هندسية، أو صور PNG خاصة من جهازك.", style = MaterialTheme.typography.bodySmall)
                             } else {
-                                Text("يمكنك سحب أي ملصق وتكبيره وتدويره مباشرة على الصورة بإصبعين.", style = MaterialTheme.typography.bodySmall)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -753,15 +891,21 @@ fun PhotoEditorSection(
                                     stickerLayers.forEach { sticker ->
                                         Box(
                                             modifier = Modifier
-                                                .size(50.dp)
-                                                .clip(RoundedCornerShape(8.dp))
+                                                .size(52.dp)
+                                                .clip(RoundedCornerShape(10.dp))
                                                 .background(
                                                     if (activeLayerId == sticker.id) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
                                                 )
                                                 .clickable { activeLayerId = sticker.id },
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            if (sticker.emoji.isNotBlank()) {
+                                            if (!sticker.customImageUri.isNullOrBlank()) {
+                                                AsyncImage(
+                                                    model = sticker.customImageUri,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp))
+                                                )
+                                            } else if (sticker.emoji.isNotBlank()) {
                                                 Text(sticker.emoji, fontSize = 24.sp)
                                             } else {
                                                 Box(
@@ -784,7 +928,7 @@ fun PhotoEditorSection(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("وضع الرسم فوق الصورة")
+                                Text("تفعيل وضع الرسم باللمس")
                                 Switch(
                                     checked = brushMode,
                                     onCheckedChange = { brushMode = it }
@@ -934,26 +1078,10 @@ fun PhotoEditorSection(
                             ) {
                                 Icon(Icons.Default.Save, contentDescription = null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("حفظ وتصدير الصورة المعدلة", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("حفظ وتصدير الصورة في المعرض", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             }
                         }
                     }
-                }
-            }
-
-            // Quick Save Button always visible at bottom if not in export tab
-            if (activeToolTab != StudioToolTab.EXPORT) {
-                Button(
-                    onClick = { editedOutput.launch("ProGalleryX-studio.jpg") },
-                    enabled = !busy,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.Save, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("حفظ وتصدير الصورة", fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -1010,6 +1138,17 @@ fun PhotoEditorSection(
                 val newSticker = InteractiveStickerLayer(
                     shapeType = shapeType,
                     colorArgb = colorArgb,
+                    normalizedX = 0.5f,
+                    normalizedY = 0.5f
+                )
+                stickerLayers = stickerLayers + newSticker
+                activeLayerId = newSticker.id
+                showStickerDialog = false
+            },
+            onSelectCustomImage = { uri ->
+                snapshot()
+                val newSticker = InteractiveStickerLayer(
+                    customImageUri = uri.toString(),
                     normalizedX = 0.5f,
                     normalizedY = 0.5f
                 )

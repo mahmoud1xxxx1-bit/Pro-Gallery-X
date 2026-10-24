@@ -23,21 +23,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -78,7 +80,7 @@ fun InteractiveLayerCanvas(
         val containerWidthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
         val containerHeightPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
 
-        // 1. Draw Brush Strokes Layer
+        // 1. Draw Brush Strokes Layer with Smooth Bézier Curves
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
@@ -108,7 +110,7 @@ fun InteractiveLayerCanvas(
             brushStrokes.forEach { stroke ->
                 if (stroke.points.isNotEmpty()) {
                     val strokeColor = Color(stroke.colorArgb)
-                    val strokeWidthPx = (stroke.strokeWidthNormalized * size.width).coerceAtLeast(1.5f)
+                    val strokeWidthPx = (stroke.strokeWidthNormalized * size.width).coerceAtLeast(2f)
 
                     if (stroke.points.size == 1) {
                         val pt = stroke.points[0]
@@ -119,11 +121,19 @@ fun InteractiveLayerCanvas(
                         )
                     } else {
                         val path = Path()
-                        stroke.points.forEachIndexed { idx, pt ->
-                            val px = pt.x * size.width
-                            val py = pt.y * size.height
-                            if (idx == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                        val pts = stroke.points
+                        path.moveTo(pts[0].x * size.width, pts[0].y * size.height)
+
+                        for (i in 1 until pts.size) {
+                            val prev = pts[i - 1]
+                            val curr = pts[i]
+                            val midX = (prev.x + curr.x) * size.width / 2f
+                            val midY = (prev.y + curr.y) * size.height / 2f
+                            path.quadraticTo(prev.x * size.width, prev.y * size.height, midX, midY)
                         }
+                        // Connect to last point
+                        path.lineTo(pts.last().x * size.width, pts.last().y * size.height)
+
                         drawPath(
                             path = path,
                             color = strokeColor,
@@ -134,6 +144,43 @@ fun InteractiveLayerCanvas(
                             )
                         )
                     }
+                }
+            }
+        }
+
+        // Active layer coordinates for visual guidelines
+        val activeText = textLayers.find { it.id == activeLayerId }
+        val activeSticker = stickerLayers.find { it.id == activeLayerId }
+        val activeX = activeText?.normalizedX ?: activeSticker?.normalizedX
+        val activeY = activeText?.normalizedY ?: activeSticker?.normalizedY
+        val showCenterXGuide = activeX != null && abs(activeX - 0.5f) < 0.015f
+        val showCenterYGuide = activeY != null && abs(activeY - 0.5f) < 0.015f
+
+        // Center Guidelines Overlay
+        if (!brushMode && (showCenterXGuide || showCenterYGuide)) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val dashed = PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f)
+                val guideColor = Color(0xFF007AFF).copy(alpha = 0.85f)
+
+                if (showCenterXGuide) {
+                    val cx = size.width * 0.5f
+                    drawLine(
+                        color = guideColor,
+                        start = Offset(cx, 0f),
+                        end = Offset(cx, size.height),
+                        strokeWidth = 2f,
+                        pathEffect = dashed
+                    )
+                }
+                if (showCenterYGuide) {
+                    val cy = size.height * 0.5f
+                    drawLine(
+                        color = guideColor,
+                        start = Offset(0f, cy),
+                        end = Offset(size.width, cy),
+                        strokeWidth = 2f,
+                        pathEffect = dashed
+                    )
                 }
             }
         }
@@ -161,7 +208,7 @@ fun InteractiveLayerCanvas(
                     .pointerInput(sticker.id, isSelected, brushMode) {
                         if (!brushMode) {
                             detectTransformGestures { _, pan, zoom, rotation ->
-                                val (newX, newY) = LayerTransformRules.applyDragDelta(
+                                var (newX, newY) = LayerTransformRules.applyDragDelta(
                                     currentX = sticker.normalizedX,
                                     currentY = sticker.normalizedY,
                                     dragPxX = pan.x,
@@ -169,12 +216,24 @@ fun InteractiveLayerCanvas(
                                     containerWidthPx = containerWidthPx,
                                     containerHeightPx = containerHeightPx
                                 )
-                                val (newScale, newRot) = LayerTransformRules.applyScaleAndRotation(
+                                // Snap position to center
+                                if (abs(newX - 0.5f) < 0.012f) newX = 0.5f
+                                if (abs(newY - 0.5f) < 0.012f) newY = 0.5f
+
+                                var (newScale, newRot) = LayerTransformRules.applyScaleAndRotation(
                                     currentScale = sticker.scale,
                                     currentRotationDegrees = sticker.rotationDegrees,
                                     zoomDelta = zoom,
                                     rotationDeltaDegrees = rotation
                                 )
+                                // Snap rotation to cardinal angles
+                                for (angle in listOf(0f, 90f, 180f, 270f, 360f)) {
+                                    if (abs(newRot - angle) < 3.5f) {
+                                        newRot = if (angle == 360f) 0f else angle
+                                        break
+                                    }
+                                }
+
                                 onSelectLayer(sticker.id)
                                 onUpdateStickerLayer(
                                     sticker.copy(
@@ -199,8 +258,17 @@ fun InteractiveLayerCanvas(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                // Sticker content: Emoji or Shape
-                if (sticker.emoji.isNotBlank()) {
+                // Sticker content: Custom Image / Emoji / Shape
+                if (!sticker.customImageUri.isNullOrBlank()) {
+                    AsyncImage(
+                        model = sticker.customImageUri,
+                        contentDescription = "ملصق خاص",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    )
+                } else if (sticker.emoji.isNotBlank()) {
                     Text(
                         text = sticker.emoji,
                         fontSize = 54.sp,
@@ -208,7 +276,7 @@ fun InteractiveLayerCanvas(
                     )
                 } else if (sticker.shapeType != null) {
                     val shapeColor = Color(sticker.colorArgb).copy(alpha = sticker.opacity)
-                    Canvas(modifier = Modifier.size(72.dp)) {
+                    Canvas(modifier = Modifier.size(76.dp)) {
                         when (sticker.shapeType) {
                             ShapeType.CIRCLE -> {
                                 drawCircle(color = shapeColor)
@@ -256,6 +324,44 @@ fun InteractiveLayerCanvas(
                                     lineTo(w * 0.6f, h * 0.8f)
                                     lineTo(w * 0.6f, h * 0.6f)
                                     lineTo(w * 0.2f, h * 0.6f)
+                                    close()
+                                }
+                                drawPath(path, color = shapeColor)
+                            }
+                            ShapeType.HEXAGON -> {
+                                val path = Path()
+                                val cx = size.width / 2f
+                                val cy = size.height / 2f
+                                val r = size.width / 2f
+                                for (i in 0 until 6) {
+                                    val angle = Math.toRadians((i * 60 - 30).toDouble())
+                                    val x = cx + (r * cos(angle)).toFloat()
+                                    val y = cy + (r * sin(angle)).toFloat()
+                                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                                }
+                                path.close()
+                                drawPath(path, color = shapeColor)
+                            }
+                            ShapeType.DIAMOND -> {
+                                val path = Path().apply {
+                                    val w = size.width
+                                    val h = size.height
+                                    moveTo(w / 2f, 0f)
+                                    lineTo(w, h / 2f)
+                                    lineTo(w / 2f, h)
+                                    lineTo(0f, h / 2f)
+                                    close()
+                                }
+                                drawPath(path, color = shapeColor)
+                            }
+                            ShapeType.SPEECH_BUBBLE -> {
+                                val path = Path().apply {
+                                    val w = size.width
+                                    val h = size.height * 0.8f
+                                    addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, w, h, 16f, 16f))
+                                    moveTo(w * 0.25f, h)
+                                    lineTo(w * 0.15f, size.height)
+                                    lineTo(w * 0.4f, h)
                                     close()
                                 }
                                 drawPath(path, color = shapeColor)
@@ -345,9 +451,11 @@ fun InteractiveLayerCanvas(
             val bgColor = when (layer.backgroundStyle) {
                 TextBackgroundStyle.TRANSPARENT -> Color.Transparent
                 TextBackgroundStyle.FILLED_BOX -> Color(layer.backgroundColorArgb).copy(alpha = layer.opacity)
+                TextBackgroundStyle.PILL -> Color(layer.backgroundColorArgb).copy(alpha = layer.opacity)
                 TextBackgroundStyle.OUTLINE -> Color.Transparent
                 TextBackgroundStyle.SEMI_TRANSPARENT -> Color.Black.copy(alpha = 0.5f * layer.opacity)
             }
+            val textShape = if (layer.backgroundStyle == TextBackgroundStyle.PILL) RoundedCornerShape(percent = 50) else RoundedCornerShape(8.dp)
 
             Box(
                 modifier = Modifier
@@ -368,7 +476,7 @@ fun InteractiveLayerCanvas(
                     .pointerInput(layer.id, isSelected, brushMode) {
                         if (!brushMode) {
                             detectTransformGestures { _, pan, zoom, rotation ->
-                                val (newX, newY) = LayerTransformRules.applyDragDelta(
+                                var (newX, newY) = LayerTransformRules.applyDragDelta(
                                     currentX = layer.normalizedX,
                                     currentY = layer.normalizedY,
                                     dragPxX = pan.x,
@@ -376,12 +484,24 @@ fun InteractiveLayerCanvas(
                                     containerWidthPx = containerWidthPx,
                                     containerHeightPx = containerHeightPx
                                 )
-                                val (newScale, newRot) = LayerTransformRules.applyScaleAndRotation(
+                                // Snap position to center
+                                if (abs(newX - 0.5f) < 0.012f) newX = 0.5f
+                                if (abs(newY - 0.5f) < 0.012f) newY = 0.5f
+
+                                var (newScale, newRot) = LayerTransformRules.applyScaleAndRotation(
                                     currentScale = layer.scale,
                                     currentRotationDegrees = layer.rotationDegrees,
                                     zoomDelta = zoom,
                                     rotationDeltaDegrees = rotation
                                 )
+                                // Snap rotation to cardinal angles
+                                for (angle in listOf(0f, 90f, 180f, 270f, 360f)) {
+                                    if (abs(newRot - angle) < 3.5f) {
+                                        newRot = if (angle == 360f) 0f else angle
+                                        break
+                                    }
+                                }
+
                                 onSelectLayer(layer.id)
                                 onUpdateTextLayer(
                                     layer.copy(
@@ -394,23 +514,27 @@ fun InteractiveLayerCanvas(
                             }
                         }
                     }
-                    .clickable(enabled = !brushMode) {
-                        if (isSelected) {
-                            onEditTextLayer(layer)
-                        } else {
-                            onSelectLayer(layer.id)
+                    .pointerInput(layer.id, isSelected, brushMode) {
+                        if (!brushMode) {
+                            detectTapGestures(
+                                onTap = { onSelectLayer(layer.id) },
+                                onDoubleTap = { onEditTextLayer(layer) }
+                            )
                         }
                     }
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(textShape)
                     .background(bgColor)
                     .then(
-                        if (layer.backgroundStyle == TextBackgroundStyle.OUTLINE) {
-                            Modifier.border(2.dp, textColor, RoundedCornerShape(8.dp))
+                        if (layer.backgroundStyle == TextBackgroundStyle.OUTLINE || layer.hasOutline) {
+                            Modifier.border(2.dp, textColor, textShape)
                         } else if (isSelected) {
-                            Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                            Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, textShape)
                         } else Modifier
                     )
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .padding(
+                        horizontal = if (layer.backgroundStyle == TextBackgroundStyle.PILL) 18.dp else 12.dp,
+                        vertical = 6.dp
+                    )
             ) {
                 Text(
                     text = layer.text,

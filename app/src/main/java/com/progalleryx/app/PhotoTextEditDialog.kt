@@ -10,12 +10,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FormatAlignLeft
+import androidx.compose.material.icons.automirrored.filled.FormatAlignRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatAlignCenter
-import androidx.compose.material.icons.filled.FormatAlignLeft
-import androidx.compose.material.icons.filled.FormatAlignRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,6 +45,8 @@ fun PhotoTextEditDialog(
     var backgroundColorArgb by remember { mutableLongStateOf(initialLayer?.backgroundColorArgb ?: 0xCC121212L) }
     var fontSizeSp by remember { mutableFloatStateOf(initialLayer?.fontSizeSp ?: 28f) }
     var opacity by remember { mutableFloatStateOf(initialLayer?.opacity ?: 1.0f) }
+    var hasShadow by remember { mutableStateOf(initialLayer?.hasShadow ?: false) }
+    var hasOutline by remember { mutableStateOf(initialLayer?.hasOutline ?: false) }
     var customHex by remember { mutableStateOf(ColorPaletteRules.formatHexColor(colorArgb)) }
 
     val resolvedFontFamily = when (fontStyle) {
@@ -103,7 +105,9 @@ fun PhotoTextEditDialog(
                                     colorArgb = colorArgb,
                                     backgroundColorArgb = backgroundColorArgb,
                                     fontSizeSp = fontSizeSp,
-                                    opacity = opacity
+                                    opacity = opacity,
+                                    hasShadow = hasShadow,
+                                    hasOutline = hasOutline
                                 )
                                 onConfirm(target)
                             }
@@ -128,20 +132,25 @@ fun PhotoTextEditDialog(
                     val previewBgColor = when (backgroundStyle) {
                         TextBackgroundStyle.TRANSPARENT -> Color.Transparent
                         TextBackgroundStyle.FILLED_BOX -> Color(backgroundColorArgb).copy(alpha = opacity)
+                        TextBackgroundStyle.PILL -> Color(backgroundColorArgb).copy(alpha = opacity)
                         TextBackgroundStyle.OUTLINE -> Color.Transparent
                         TextBackgroundStyle.SEMI_TRANSPARENT -> Color.Black.copy(alpha = 0.5f * opacity)
                     }
+                    val previewShape = if (backgroundStyle == TextBackgroundStyle.PILL) RoundedCornerShape(percent = 50) else RoundedCornerShape(8.dp)
 
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(previewShape)
                             .background(previewBgColor)
                             .then(
-                                if (backgroundStyle == TextBackgroundStyle.OUTLINE) {
-                                    Modifier.border(2.dp, previewTextColor, RoundedCornerShape(8.dp))
+                                if (backgroundStyle == TextBackgroundStyle.OUTLINE || hasOutline) {
+                                    Modifier.border(2.dp, previewTextColor, previewShape)
                                 } else Modifier
                             )
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                            .padding(
+                                horizontal = if (backgroundStyle == TextBackgroundStyle.PILL) 20.dp else 14.dp,
+                                vertical = 8.dp
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -203,6 +212,7 @@ fun PhotoTextEditDialog(
                     listOf(
                         TextBackgroundStyle.TRANSPARENT to "بدون خلفية",
                         TextBackgroundStyle.FILLED_BOX to "مربع ممتلئ",
+                        TextBackgroundStyle.PILL to "كبسولة (Pill)",
                         TextBackgroundStyle.OUTLINE to "إطار محيط",
                         TextBackgroundStyle.SEMI_TRANSPARENT to "نصف شفاف"
                     ).forEach { (style, label) ->
@@ -210,13 +220,33 @@ fun PhotoTextEditDialog(
                             selected = backgroundStyle == style,
                             onClick = {
                                 backgroundStyle = style
-                                if (style == TextBackgroundStyle.FILLED_BOX && backgroundColorArgb == 0x00000000L) {
+                                if ((style == TextBackgroundStyle.FILLED_BOX || style == TextBackgroundStyle.PILL) && backgroundColorArgb == 0x00000000L) {
                                     backgroundColorArgb = 0xFF121212L
                                 }
                             },
                             label = { Text(label) }
                         )
                     }
+                }
+
+                // Effects: Shadow & Outline
+                Text("المؤثرات والظلال", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    FilterChip(
+                        selected = hasShadow,
+                        onClick = { hasShadow = !hasShadow },
+                        label = { Text("ظل النص (Shadow)") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = hasOutline,
+                        onClick = { hasOutline = !hasOutline },
+                        label = { Text("إطار بارز (Outline)") },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
                 // Alignment Selector
@@ -234,7 +264,7 @@ fun PhotoTextEditDialog(
                                 RoundedCornerShape(8.dp)
                             )
                     ) {
-                        Icon(Icons.Default.FormatAlignRight, contentDescription = "يمين")
+                        Icon(Icons.AutoMirrored.Filled.FormatAlignRight, contentDescription = "يمين")
                     }
                     IconButton(
                         onClick = { textAlign = TextAlignment.CENTER },
@@ -256,7 +286,7 @@ fun PhotoTextEditDialog(
                                 RoundedCornerShape(8.dp)
                             )
                     ) {
-                        Icon(Icons.Default.FormatAlignLeft, contentDescription = "يسار")
+                        Icon(Icons.AutoMirrored.Filled.FormatAlignLeft, contentDescription = "يسار")
                     }
                 }
 
@@ -289,9 +319,9 @@ fun PhotoTextEditDialog(
                     }
                 }
 
-                // If filled box background, also show background box color swatches
-                if (backgroundStyle == TextBackgroundStyle.FILLED_BOX) {
-                    Text("لون خلفية المربع", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                // If filled box or pill background, also show background box color swatches
+                if (backgroundStyle == TextBackgroundStyle.FILLED_BOX || backgroundStyle == TextBackgroundStyle.PILL) {
+                    Text("لون خلفية النص", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -402,7 +432,9 @@ fun PhotoTextEditDialog(
                                     colorArgb = colorArgb,
                                     backgroundColorArgb = backgroundColorArgb,
                                     fontSizeSp = fontSizeSp,
-                                    opacity = opacity
+                                    opacity = opacity,
+                                    hasShadow = hasShadow,
+                                    hasOutline = hasOutline
                                 )
                                 onConfirm(target)
                             }

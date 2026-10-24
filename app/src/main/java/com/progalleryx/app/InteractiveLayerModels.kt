@@ -47,6 +47,7 @@ data class InteractiveStickerLayer(
     val id: String = UUID.randomUUID().toString(),
     val emoji: String = "",
     val shapeType: ShapeType? = null,
+    val customImageUri: String? = null,
     val normalizedX: Float = 0.5f,
     val normalizedY: Float = 0.5f,
     val scale: Float = 1.0f,

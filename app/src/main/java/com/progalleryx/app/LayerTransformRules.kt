@@ -5,6 +5,7 @@ import kotlin.math.*
 enum class TextBackgroundStyle {
     TRANSPARENT,
     FILLED_BOX,      // Snapchat-style filled rounded box with contrast text
+    PILL,            // Rounded capsule pill background
     OUTLINE,         // Bold outline around text
     SEMI_TRANSPARENT // Subtle black/white tinted translucent background
 }
@@ -28,7 +29,10 @@ enum class ShapeType {
     CIRCLE,
     STAR,
     ARROW,
-    HEART
+    HEART,
+    HEXAGON,
+    DIAMOND,
+    SPEECH_BUBBLE
 }
 
 data class NormalizedRect(

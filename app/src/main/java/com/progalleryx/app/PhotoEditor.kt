@@ -170,7 +170,7 @@ object PhotoEditor {
                     // 3. Draw Interactive Stickers & Shapes
                     if (settings.interactiveStickerLayers.isNotEmpty()) {
                         settings.interactiveStickerLayers.forEach { sticker ->
-                            drawStickerOnCanvas(canvas, sticker, output.width, output.height)
+                            drawStickerOnCanvas(context, canvas, sticker, output.width, output.height)
                         }
                     }
 
@@ -253,16 +253,21 @@ object PhotoEditor {
             })
         } else {
             val path = android.graphics.Path()
-            stroke.points.forEachIndexed { idx, pt ->
-                val px = pt.x * bitmapWidth
-                val py = pt.y * bitmapHeight
-                if (idx == 0) path.moveTo(px, py) else path.lineTo(px, py)
+            val pts = stroke.points
+            path.moveTo(pts[0].x * bitmapWidth, pts[0].y * bitmapHeight)
+            for (i in 1 until pts.size) {
+                val prev = pts[i - 1]
+                val curr = pts[i]
+                val midX = (prev.x + curr.x) * bitmapWidth / 2f
+                val midY = (prev.y + curr.y) * bitmapHeight / 2f
+                path.quadTo(prev.x * bitmapWidth, prev.y * bitmapHeight, midX, midY)
             }
+            path.lineTo(pts.last().x * bitmapWidth, pts.last().y * bitmapHeight)
             canvas.drawPath(path, paint)
         }
     }
 
-    private fun drawStickerOnCanvas(canvas: Canvas, sticker: InteractiveStickerLayer, bitmapWidth: Int, bitmapHeight: Int) {
+    private fun drawStickerOnCanvas(context: Context, canvas: Canvas, sticker: InteractiveStickerLayer, bitmapWidth: Int, bitmapHeight: Int) {
         val cx = sticker.normalizedX * bitmapWidth
         val cy = sticker.normalizedY * bitmapHeight
         val baseSize = bitmapWidth * 0.12f * sticker.scale
@@ -271,7 +276,23 @@ object PhotoEditor {
         canvas.translate(cx, cy)
         canvas.rotate(sticker.rotationDegrees)
 
-        if (sticker.emoji.isNotBlank()) {
+        if (!sticker.customImageUri.isNullOrBlank()) {
+            runCatching {
+                val uri = android.net.Uri.parse(sticker.customImageUri)
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream)
+                }
+            }.getOrNull()?.let { customBmp ->
+                val aspect = customBmp.width.toFloat() / customBmp.height.toFloat().coerceAtLeast(1f)
+                val dstW = if (aspect >= 1f) baseSize else baseSize * aspect
+                val dstH = if (aspect >= 1f) baseSize / aspect else baseSize
+                val dstRect = android.graphics.RectF(-dstW / 2f, -dstH / 2f, dstW / 2f, dstH / 2f)
+                val bmpPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    alpha = (sticker.opacity * 255).toInt().coerceIn(0, 255)
+                }
+                canvas.drawBitmap(customBmp, null, dstRect, bmpPaint)
+            }
+        } else if (sticker.emoji.isNotBlank()) {
             val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 textSize = baseSize
                 textAlign = Paint.Align.CENTER
@@ -330,6 +351,37 @@ object PhotoEditor {
                     }
                     canvas.drawPath(path, shapePaint)
                 }
+                ShapeType.HEXAGON -> {
+                    val path = android.graphics.Path()
+                    for (i in 0 until 6) {
+                        val angle = Math.toRadians((i * 60 - 30).toDouble())
+                        val x = (half * Math.cos(angle)).toFloat()
+                        val y = (half * Math.sin(angle)).toFloat()
+                        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    }
+                    path.close()
+                    canvas.drawPath(path, shapePaint)
+                }
+                ShapeType.DIAMOND -> {
+                    val path = android.graphics.Path().apply {
+                        moveTo(0f, -half)
+                        lineTo(half, 0f)
+                        lineTo(0f, half)
+                        lineTo(-half, 0f)
+                        close()
+                    }
+                    canvas.drawPath(path, shapePaint)
+                }
+                ShapeType.SPEECH_BUBBLE -> {
+                    val path = android.graphics.Path().apply {
+                        addRoundRect(android.graphics.RectF(-half, -half, half, half * 0.65f), baseSize * 0.15f, baseSize * 0.15f, android.graphics.Path.Direction.CW)
+                        moveTo(-half * 0.4f, half * 0.65f)
+                        lineTo(-half * 0.6f, half)
+                        lineTo(-half * 0.15f, half * 0.65f)
+                        close()
+                    }
+                    canvas.drawPath(path, shapePaint)
+                }
             }
         }
         canvas.restore()
@@ -356,7 +408,7 @@ object PhotoEditor {
                 TextAlignment.END -> Paint.Align.RIGHT
             }
             if (layer.hasShadow) {
-                setShadowLayer(fontSizePx * 0.1f, 2f, 2f, android.graphics.Color.BLACK)
+                setShadowLayer(fontSizePx * 0.12f, 3f, 3f, android.graphics.Color.BLACK)
             }
         }
 
@@ -377,8 +429,8 @@ object PhotoEditor {
         canvas.translate(cx, cy)
         canvas.rotate(layer.rotationDegrees)
 
-        val padX = fontSizePx * 0.45f
-        val padY = fontSizePx * 0.25f
+        val padX = fontSizePx * 0.5f
+        val padY = fontSizePx * 0.3f
         val halfW = (maxLineWidth / 2f) + padX
         val halfH = (totalHeight / 2f) + padY
         val bgRect = android.graphics.RectF(-halfW, -halfH, halfW, halfH)
@@ -390,6 +442,14 @@ object PhotoEditor {
                     color = ((layer.opacity * 255).toInt().coerceIn(0, 255) shl 24) or (layer.backgroundColorArgb.toInt() and 0x00FFFFFF)
                 }
                 canvas.drawRoundRect(bgRect, fontSizePx * 0.35f, fontSizePx * 0.35f, bgPaint)
+            }
+            TextBackgroundStyle.PILL -> {
+                val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.FILL
+                    color = ((layer.opacity * 255).toInt().coerceIn(0, 255) shl 24) or (layer.backgroundColorArgb.toInt() and 0x00FFFFFF)
+                }
+                val pillRadius = halfH.coerceAtLeast(fontSizePx * 0.5f)
+                canvas.drawRoundRect(bgRect, pillRadius, pillRadius, bgPaint)
             }
             TextBackgroundStyle.SEMI_TRANSPARENT -> {
                 val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -407,6 +467,16 @@ object PhotoEditor {
                 canvas.drawRoundRect(bgRect, fontSizePx * 0.35f, fontSizePx * 0.35f, outlinePaint)
             }
             TextBackgroundStyle.TRANSPARENT -> { /* No background box */ }
+        }
+
+        if (layer.hasOutline && layer.backgroundStyle != TextBackgroundStyle.OUTLINE) {
+            val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = (fontSizePx * 0.08f).coerceAtLeast(2.5f)
+                color = textPaint.color
+            }
+            val radius = if (layer.backgroundStyle == TextBackgroundStyle.PILL) halfH else fontSizePx * 0.35f
+            canvas.drawRoundRect(bgRect, radius, radius, outlinePaint)
         }
 
         var lineY = -halfH + padY - fontMetrics.ascent

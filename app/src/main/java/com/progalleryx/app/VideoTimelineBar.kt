@@ -11,8 +11,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -121,7 +122,7 @@ fun VideoTimelineBar(
                     modifier = Modifier.size(34.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.RotateRight,
+                        imageVector = Icons.AutoMirrored.Filled.RotateRight,
                         contentDescription = if (isArabic) "تدوير" else "Rotate",
                         tint = if (selectedClip != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
                         modifier = Modifier.size(18.dp)
