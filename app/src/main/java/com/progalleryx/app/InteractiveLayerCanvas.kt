@@ -16,6 +16,8 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,14 +32,17 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -196,21 +201,26 @@ fun InteractiveLayerCanvas(
             Box(
                 modifier = Modifier
                     .offset {
-                        IntOffset(
-                            x = (sticker.normalizedX * containerWidthPx).roundToInt(),
-                            y = (sticker.normalizedY * containerHeightPx).roundToInt()
+                        val stickerSizePx = (120.dp.toPx()).roundToInt()
+                        val (ox, oy) = LayerTransformRules.calculateCenterOffset(
+                            normalizedX = sticker.normalizedX,
+                            normalizedY = sticker.normalizedY,
+                            containerWidthPx = containerWidthPx,
+                            containerHeightPx = containerHeightPx,
+                            layerWidthPx = stickerSizePx,
+                            layerHeightPx = stickerSizePx
                         )
+                        IntOffset(ox, oy)
                     }
                     .graphicsLayer {
                         scaleX = sticker.scale
                         scaleY = sticker.scale
                         rotationZ = sticker.rotationDegrees
-                        translationX = -60.dp.toPx()
-                        translationY = -60.dp.toPx()
+                        transformOrigin = TransformOrigin.Center
                     }
                     .size(120.dp)
-                    .pointerInput(sticker.id, isSelected, brushMode) {
-                        if (!brushMode) {
+                    .pointerInput(sticker.id, isSelected, brushMode, sticker.isLocked) {
+                        if (!brushMode && !sticker.isLocked) {
                             detectTransformGestures { _, pan, zoom, rotation ->
                                 var (newX, newY) = LayerTransformRules.applyDragDelta(
                                     currentX = sticker.normalizedX,
@@ -255,7 +265,7 @@ fun InteractiveLayerCanvas(
                         if (isSelected) {
                             Modifier.border(
                                 1.5.dp,
-                                MaterialTheme.colorScheme.primary,
+                                if (sticker.isLocked) Color(0xFFFF9500) else MaterialTheme.colorScheme.primary,
                                 RoundedCornerShape(12.dp)
                             )
                         } else Modifier
@@ -376,6 +386,25 @@ fun InteractiveLayerCanvas(
 
                 // If selected, show action handles
                 if (isSelected) {
+                    // Lock/Unlock handle (Top-Center)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .offset(y = (-14).dp)
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(if (sticker.isLocked) Color(0xFFFF9500) else Color(0xFF64D2FF))
+                            .clickable { onUpdateStickerLayer(sticker.copy(isLocked = !sticker.isLocked)) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (sticker.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                            contentDescription = if (sticker.isLocked) "إلغاء القفل" else "قفل",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
                     // Bring forward handle (Top-Start)
                     Box(
                         modifier = Modifier
@@ -479,25 +508,37 @@ fun InteractiveLayerCanvas(
                 TextBackgroundStyle.SEMI_TRANSPARENT -> Color.Black.copy(alpha = 0.5f * layer.opacity)
             }
             val textShape = if (layer.backgroundStyle == TextBackgroundStyle.PILL) RoundedCornerShape(percent = 50) else RoundedCornerShape(8.dp)
+            var layerSize by remember(layer.id, layer.text, layer.fontSizeSp) { mutableStateOf(IntSize.Zero) }
 
             Box(
                 modifier = Modifier
+                    .onSizeChanged { size ->
+                        if (size.width > 0 && size.height > 0) {
+                            layerSize = size
+                        }
+                    }
                     .offset {
-                        IntOffset(
-                            x = (layer.normalizedX * containerWidthPx).roundToInt(),
-                            y = (layer.normalizedY * containerHeightPx).roundToInt()
+                        val w = if (layerSize.width > 0) layerSize.width else (containerWidthPx * 0.35f).roundToInt()
+                        val h = if (layerSize.height > 0) layerSize.height else (containerHeightPx * 0.08f).roundToInt()
+                        val (ox, oy) = LayerTransformRules.calculateCenterOffset(
+                            normalizedX = layer.normalizedX,
+                            normalizedY = layer.normalizedY,
+                            containerWidthPx = containerWidthPx,
+                            containerHeightPx = containerHeightPx,
+                            layerWidthPx = w,
+                            layerHeightPx = h
                         )
+                        IntOffset(ox, oy)
                     }
                     .graphicsLayer {
                         scaleX = layer.scale
                         scaleY = layer.scale
                         rotationZ = layer.rotationDegrees
-                        translationX = -80.dp.toPx()
-                        translationY = -35.dp.toPx()
+                        transformOrigin = TransformOrigin.Center
                     }
                     .widthIn(min = 120.dp, max = 280.dp)
-                    .pointerInput(layer.id, isSelected, brushMode) {
-                        if (!brushMode) {
+                    .pointerInput(layer.id, isSelected, brushMode, layer.isLocked) {
+                        if (!brushMode && !layer.isLocked) {
                             detectTransformGestures { _, pan, zoom, rotation ->
                                 var (newX, newY) = LayerTransformRules.applyDragDelta(
                                     currentX = layer.normalizedX,
@@ -551,7 +592,11 @@ fun InteractiveLayerCanvas(
                         if (layer.backgroundStyle == TextBackgroundStyle.OUTLINE || layer.hasOutline) {
                             Modifier.border(2.dp, textColor, textShape)
                         } else if (isSelected) {
-                            Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, textShape)
+                            Modifier.border(
+                                1.5.dp,
+                                if (layer.isLocked) Color(0xFFFF9500) else MaterialTheme.colorScheme.primary,
+                                textShape
+                            )
                         } else Modifier
                     )
                     .padding(
@@ -627,6 +672,25 @@ fun InteractiveLayerCanvas(
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "حذف",
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+
+                    // Lock/Unlock handle (Bottom-Center)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .offset(y = 10.dp)
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(if (layer.isLocked) Color(0xFFFF9500) else Color(0xFF64D2FF))
+                            .clickable { onUpdateTextLayer(layer.copy(isLocked = !layer.isLocked)) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (layer.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                            contentDescription = if (layer.isLocked) "إلغاء القفل" else "قفل",
                             tint = Color.White,
                             modifier = Modifier.size(14.dp)
                         )

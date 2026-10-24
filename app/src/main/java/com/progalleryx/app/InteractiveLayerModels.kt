@@ -17,7 +17,8 @@ data class InteractiveTextLayer(
     val textAlign: TextAlignment = TextAlignment.CENTER,
     val opacity: Float = 1.0f,
     val hasShadow: Boolean = false,
-    val hasOutline: Boolean = false
+    val hasOutline: Boolean = false,
+    val isLocked: Boolean = false
 ) {
     fun toLegacyLayer(): PhotoTextLayer {
         val isDark = ColorPaletteRules.getContrastingTextColor(colorArgb) == 0xFFFFFFFFL
@@ -53,7 +54,8 @@ data class InteractiveStickerLayer(
     val scale: Float = 1.0f,
     val rotationDegrees: Float = 0f,
     val colorArgb: Long = 0xFFFFFFFF,
-    val opacity: Float = 1.0f
+    val opacity: Float = 1.0f,
+    val isLocked: Boolean = false
 )
 
 data class NormalizedPoint(val x: Float, val y: Float)

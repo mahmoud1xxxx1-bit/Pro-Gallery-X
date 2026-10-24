@@ -887,6 +887,19 @@ fun PhotoEditorSection(
                                                 ) {
                                                     Icon(Icons.Default.ArrowDownward, contentDescription = "للخلف", modifier = Modifier.size(18.dp))
                                                 }
+                                                IconButton(
+                                                    onClick = {
+                                                        snapshot()
+                                                        textLayers = LayerTransformRules.toggleTextLayerLock(textLayers, layer.id)
+                                                    }
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (layer.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                                        contentDescription = if (layer.isLocked) "إلغاء القفل" else "قفل",
+                                                        tint = if (layer.isLocked) Color(0xFFFF9500) else MaterialTheme.colorScheme.onSurface,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
                                                 IconButton(onClick = {
                                                     editingTextLayer = layer
                                                     showTextDialog = true
@@ -994,6 +1007,20 @@ fun PhotoEditorSection(
                                                 enabled = stickerIdx > 0
                                             ) {
                                                 Icon(Icons.Default.ArrowDownward, contentDescription = "للخلف", modifier = Modifier.size(18.dp))
+                                            }
+                                            IconButton(
+                                                onClick = {
+                                                    snapshot()
+                                                    stickerLayers = LayerTransformRules.toggleStickerLayerLock(stickerLayers, activeLayerId!!)
+                                                }
+                                            ) {
+                                                val isLocked = stickerLayers.find { it.id == activeLayerId }?.isLocked == true
+                                                Icon(
+                                                    imageVector = if (isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                                    contentDescription = if (isLocked) "إلغاء القفل" else "قفل",
+                                                    tint = if (isLocked) Color(0xFFFF9500) else MaterialTheme.colorScheme.onSurface,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
                                             }
                                             IconButton(
                                                 onClick = {

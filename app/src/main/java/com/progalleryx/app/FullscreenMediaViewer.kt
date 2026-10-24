@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -71,6 +73,7 @@ fun FullscreenMediaViewer(
 
     var showControls by remember { mutableStateOf(true) }
     var showDetailsSheet by remember { mutableStateOf(false) }
+    var isPhotoZoomed by remember { mutableStateOf(false) }
 
     val currentItem = mediaList.getOrNull(pagerState.currentPage)
 
@@ -82,8 +85,9 @@ fun FullscreenMediaViewer(
         }
     }
 
-    // Preload next and previous images
+    // Preload next and previous images, reset zoom on page change
     LaunchedEffect(pagerState.currentPage) {
+        isPhotoZoomed = false
         val nextIdx = pagerState.currentPage + 1
         val prevIdx = pagerState.currentPage - 1
         if (nextIdx < mediaList.size && !mediaList[nextIdx].video) {
@@ -101,10 +105,11 @@ fun FullscreenMediaViewer(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // Horizontal Pager for swiping between media
+        // Horizontal Pager for swiping between media (disabled when photo is zoomed)
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
+            userScrollEnabled = !isPhotoZoomed,
             key = { index -> mediaList.getOrNull(index)?.id ?: index }
         ) { page ->
             val item = mediaList.getOrNull(page)
@@ -121,7 +126,12 @@ fun FullscreenMediaViewer(
                 } else {
                     ZoomablePhotoItem(
                         item = item,
-                        onToggleControls = { showControls = !showControls }
+                        onToggleControls = { showControls = !showControls },
+                        onZoomChanged = { zoomed ->
+                            if (page == pagerState.currentPage) {
+                                isPhotoZoomed = zoomed
+                            }
+                        }
                     )
                 }
             }
@@ -354,11 +364,16 @@ private fun DetailRow(label: String, value: String) {
 @Composable
 private fun ZoomablePhotoItem(
     item: GalleryMedia,
-    onToggleControls: () -> Unit
+    onToggleControls: () -> Unit,
+    onZoomChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     var targetScale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+
+    LaunchedEffect(targetScale) {
+        onZoomChanged(targetScale > 1.05f)
+    }
 
     val animatedScale by animateFloatAsState(
         targetValue = targetScale,
@@ -474,10 +489,27 @@ private fun FullscreenVideoPlayerItem(
     }
 
     val exoPlayer = remember(item.uri) {
+        val audioAttributes = AudioAttributes.Builder()
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .setUsage(C.USAGE_MEDIA)
+            .build()
+
         ExoPlayer.Builder(context).build().apply {
+            setAudioAttributes(audioAttributes, true)
             setMediaItem(MediaItem.fromUri(item.uri))
             prepare()
             playWhenReady = true
+        }
+    }
+
+    val activity = context as? android.app.Activity
+    var isLandscape by remember {
+        mutableStateOf(activity?.resources?.configuration?.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
+    }
+
+    DisposableEffect(activity) {
+        onDispose {
+            activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 
@@ -505,6 +537,9 @@ private fun FullscreenVideoPlayerItem(
                 isBuffering = state == androidx.media3.common.Player.STATE_BUFFERING
                 if (state == androidx.media3.common.Player.STATE_READY) {
                     durationMs = exoPlayer.duration.coerceAtLeast(0L)
+                } else if (state == androidx.media3.common.Player.STATE_ENDED) {
+                    isPlaying = false
+                    currentPositionMs = durationMs
                 }
             }
 
@@ -610,7 +645,8 @@ private fun FullscreenVideoPlayerItem(
                         if (exoPlayer.isPlaying) {
                             exoPlayer.pause()
                         } else {
-                            if (exoPlayer.currentPosition >= exoPlayer.duration && exoPlayer.duration > 0) {
+                            if ((exoPlayer.currentPosition >= exoPlayer.duration && exoPlayer.duration > 0) ||
+                                exoPlayer.playbackState == androidx.media3.common.Player.STATE_ENDED) {
                                 exoPlayer.seekTo(0)
                             }
                             exoPlayer.play()
@@ -772,6 +808,29 @@ private fun FullscreenVideoPlayerItem(
                                     Icon(
                                         imageVector = if (isMuted) Icons.AutoMirrored.Outlined.VolumeOff else Icons.AutoMirrored.Outlined.VolumeUp,
                                         contentDescription = "Mute Toggle",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+
+                                // Orientation toggle
+                                IconButton(
+                                    onClick = {
+                                        activity?.let { act ->
+                                            val nextLandscape = !isLandscape
+                                            act.requestedOrientation = if (nextLandscape) {
+                                                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                            } else {
+                                                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                                            }
+                                            isLandscape = nextLandscape
+                                        }
+                                    },
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isLandscape) Icons.Outlined.ScreenLockPortrait else Icons.Outlined.ScreenRotation,
+                                        contentDescription = "تبديل الاتجاه",
                                         tint = Color.White,
                                         modifier = Modifier.size(18.dp)
                                     )

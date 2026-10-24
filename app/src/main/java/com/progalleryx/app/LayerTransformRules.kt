@@ -178,4 +178,28 @@ object LayerTransformRules {
         result.add(index - 1, item)
         return result
     }
+
+    /** Calculates exact center offset for placing a layer on canvas. */
+    fun calculateCenterOffset(
+        normalizedX: Float,
+        normalizedY: Float,
+        containerWidthPx: Float,
+        containerHeightPx: Float,
+        layerWidthPx: Int,
+        layerHeightPx: Int
+    ): Pair<Int, Int> {
+        val targetCenterX = (normalizedX * containerWidthPx.coerceAtLeast(1f)).roundToInt()
+        val targetCenterY = (normalizedY * containerHeightPx.coerceAtLeast(1f)).roundToInt()
+        return Pair(targetCenterX - layerWidthPx / 2, targetCenterY - layerHeightPx / 2)
+    }
+
+    /** Toggles lock state for a text layer in a list. */
+    fun toggleTextLayerLock(layers: List<InteractiveTextLayer>, id: String): List<InteractiveTextLayer> {
+        return layers.map { if (it.id == id) it.copy(isLocked = !it.isLocked) else it }
+    }
+
+    /** Toggles lock state for a sticker layer in a list. */
+    fun toggleStickerLayerLock(layers: List<InteractiveStickerLayer>, id: String): List<InteractiveStickerLayer> {
+        return layers.map { if (it.id == id) it.copy(isLocked = !it.isLocked) else it }
+    }
 }
