@@ -28,6 +28,7 @@ data class StudioPlusUiState(
     val activeVideoItem: StudioMediaItem? = null,
     val directIncomingVideoUri: Uri? = null,
     val directIncomingImageUri: Uri? = null,
+    val editingImageUri: Uri? = null,
     val selectedItemIds: Set<Long> = emptySet(),
     val isSelectionMode: Boolean = false,
     val searchQuery: String = "",
@@ -139,6 +140,14 @@ class StudioPlusViewModel(application: Application) : AndroidViewModel(applicati
             selectedItemIds = current,
             isSelectionMode = current.isNotEmpty()
         )
+    }
+
+    fun openPhotoEditor(uri: Uri) {
+        _uiState.value = _uiState.value.copy(editingImageUri = uri)
+    }
+
+    fun closePhotoEditor() {
+        _uiState.value = _uiState.value.copy(editingImageUri = null)
     }
 
     fun clearSelection() {

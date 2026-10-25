@@ -47,6 +47,7 @@ fun StudioImageViewerScreen(
     onToggleFavorite: (StudioMediaItem) -> Unit,
     onDeleteRequest: (StudioMediaItem) -> Unit,
     onPlayVideo: ((StudioMediaItem) -> Unit)? = null,
+    onEdit: ((StudioMediaItem) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -191,6 +192,19 @@ fun StudioImageViewerScreen(
                         contentDescription = stringResource(R.string.action_favorite),
                         tint = if (isFav) Color(0xFFFF5252) else Color.White
                     )
+                }
+
+                // Edit (for photos)
+                if (currentItem?.isVideo == false && onEdit != null) {
+                    IconButton(
+                        onClick = { currentItem.let(onEdit) }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = stringResource(R.string.action_edit),
+                            tint = Color.White
+                        )
+                    }
                 }
 
                 // Delete

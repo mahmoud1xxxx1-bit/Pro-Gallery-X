@@ -27,6 +27,7 @@ import com.progalleryx.app.studioplus.core.theme.SamsungBlue
  */
 @Composable
 fun StudioPlusHubScreen(
+    onOpenPhotoEditor: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -107,10 +108,11 @@ fun StudioPlusHubScreen(
         item {
             StudioToolCard(
                 title = "محرر الصور المتقدم",
-                description = "محرر احترافي من الصفر: قص، فلاتر حقيقية، نصوص، ملصقات ورسم فائق النعومة بدون استهلاك للذاكرة.",
+                description = "محرر احترافي متكامل: قص حر وبنسب ثابتة، فلاتر سينمائية حقيقية، كتابة نصوص عربية بأشكال وألوان One UI، رسم بأقلام فسفورية وتصدير فائق الدقة.",
                 icon = Icons.Outlined.Brush,
                 accentColor = Color(0xFF2E6EEF),
-                status = "المرحلة القادمة"
+                status = "جاهز للتشغيل",
+                onClick = onOpenPhotoEditor
             )
         }
 
@@ -155,10 +157,14 @@ private fun StudioToolCard(
     description: String,
     icon: ImageVector,
     accentColor: Color,
-    status: String
+    status: String,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .clickable(enabled = onClick != null) { onClick?.invoke() },
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {

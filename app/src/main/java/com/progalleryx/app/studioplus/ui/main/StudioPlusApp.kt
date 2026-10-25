@@ -45,6 +45,8 @@ import com.progalleryx.app.studioplus.ui.gallery.StudioTimelineScreen
 import com.progalleryx.app.studioplus.ui.hub.StudioPlusHubScreen
 import com.progalleryx.app.studioplus.ui.player.StudioSamsungPlayerScreen
 import com.progalleryx.app.studioplus.ui.viewer.StudioImageViewerScreen
+import com.progalleryx.app.studioplus.feature.photoeditor.ui.StudioPhotoEditorScreen
+import android.widget.Toast
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -136,6 +138,12 @@ fun StudioPlusApp(
                 viewModel.openDirectIncomingVideo(data)
             } else if (mimeType?.startsWith("image/") == true) {
                 viewModel.openDirectIncomingImage(data)
+            }
+        }
+
+        if (action == Intent.ACTION_EDIT && data != null) {
+            if (mimeType?.startsWith("image/") == true) {
+                viewModel.openPhotoEditor(data)
             }
         }
 
@@ -242,7 +250,16 @@ fun StudioPlusApp(
                                     )
                                 }
                                 StudioTab.STUDIO_PLUS -> {
-                                    StudioPlusHubScreen()
+                                    StudioPlusHubScreen(
+                                        onOpenPhotoEditor = {
+                                            val firstPhoto = uiState.allMedia.firstOrNull { !it.isVideo && it.uri != null }
+                                            if (firstPhoto != null) {
+                                                viewModel.openPhotoEditor(firstPhoto.uri!!)
+                                            } else {
+                                                Toast.makeText(context, "الرجاء التقاط أو إضافة صورة أولاً لتعديلها", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -278,6 +295,9 @@ fun StudioPlusApp(
                             },
                             onPlayVideo = { item ->
                                 viewModel.openVideoPlayer(item)
+                            },
+                            onEdit = { item ->
+                                item.uri?.let { viewModel.openPhotoEditor(it) }
                             }
                         )
                     }
@@ -300,7 +320,10 @@ fun StudioPlusApp(
                             initialIndex = 0,
                             onBack = { viewModel.closeImageViewer() },
                             onToggleFavorite = {},
-                            onDeleteRequest = { viewModel.closeImageViewer() }
+                            onDeleteRequest = { viewModel.closeImageViewer() },
+                            onEdit = { item ->
+                                item.uri?.let { viewModel.openPhotoEditor(it) }
+                            }
                         )
                     }
 
@@ -319,6 +342,17 @@ fun StudioPlusApp(
                             videoUri = uiState.directIncomingVideoUri!!,
                             title = "تشغيل الفيديو",
                             onBack = { viewModel.closeVideoPlayer() }
+                        )
+                    }
+
+                    // Fullscreen Photo Editor Overlay
+                    if (uiState.editingImageUri != null) {
+                        StudioPhotoEditorScreen(
+                            imageUri = uiState.editingImageUri!!,
+                            onClose = { viewModel.closePhotoEditor() },
+                            onSaved = { _ ->
+                                viewModel.closePhotoEditor()
+                            }
                         )
                     }
                 }
