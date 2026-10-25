@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="shortcut_pictures"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_menu_gallery"
+        android:shortcutShortLabel="@string/shortcut_pictures_short"
+        android:shortcutLongLabel="@string/shortcut_pictures_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.progalleryx.app"
+            android:targetClass="com.progalleryx.app.MainActivity">
+            <extra android:name="extra_tab" android:value="PICTURES" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="shortcut_albums"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_menu_sort_by_size"
+        android:shortcutShortLabel="@string/shortcut_albums_short"
+        android:shortcutLongLabel="@string/shortcut_albums_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.progalleryx.app"
+            android:targetClass="com.progalleryx.app.MainActivity">
+            <extra android:name="extra_tab" android:value="ALBUMS" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="shortcut_hub"
+        android:enabled="true"
+        android:icon="@android:drawable/ic_menu_manage"
+        android:shortcutShortLabel="@string/shortcut_hub_short"
+        android:shortcutLongLabel="@string/shortcut_hub_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.progalleryx.app"
+            android:targetClass="com.progalleryx.app.MainActivity">
+            <extra android:name="extra_tab" android:value="STUDIO_PLUS" />
+        </intent>
+    </shortcut>
+</shortcuts>

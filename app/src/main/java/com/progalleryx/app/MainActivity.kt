@@ -39,6 +39,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.collectLatest
 import java.util.Locale
 
+import com.progalleryx.app.studioplus.ui.main.StudioPlusApp
+
 enum class GalleryTab {
     PICTURES,
     ALBUMS,
@@ -46,13 +48,16 @@ enum class GalleryTab {
 }
 
 class MainActivity : ComponentActivity() {
-    private val incomingIntent = androidx.compose.runtime.mutableStateOf<Intent?>(null)
+    private val incomingIntent = androidx.compose.runtime.mutableStateOf<Intent?>(
+        null,
+        androidx.compose.runtime.neverEqualPolicy()
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         incomingIntent.value = intent
         setContent {
-            ProGalleryApp(intentState = incomingIntent)
+            StudioPlusApp(intentState = incomingIntent)
         }
     }
 

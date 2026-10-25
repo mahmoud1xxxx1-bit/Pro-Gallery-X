@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">استديو بلس +</string>
+    <string name="tab_pictures">الصور</string>
+    <string name="tab_albums">الألبومات</string>
+    <string name="tab_studio_plus">استديو +</string>
+    <string name="empty_gallery_title">لا توجد وسائط</string>
+    <string name="empty_gallery_desc">الصور ومقاطع الفيديو الموجودة على هاتفك ستظهر هنا</string>
+    <string name="permission_required_title">مطلوب إذن الوصول للوسائط</string>
+    <string name="permission_required_desc">يرجى منح استديو بلس + صلاحية الوصول إلى الصور ومقاطع الفيديو لتتمكن من تصفحها وتشغيلها وتحريرها.</string>
+    <string name="grant_permission">منح الإذن</string>
+    <string name="action_share">مشاركة</string>
+    <string name="action_delete">حذف</string>
+    <string name="action_favorite">المفضلة</string>
+    <string name="action_details">التفاصيل</string>
+    <string name="action_edit">تعديل</string>
+
+    <!-- App Shortcuts -->
+    <string name="shortcut_pictures_short">الصور</string>
+    <string name="shortcut_pictures_long">استعراض الصور ومقاطع الفيديو</string>
+    <string name="shortcut_albums_short">الألبومات</string>
+    <string name="shortcut_albums_long">تصفح مجلدات وألبومات الوسائط</string>
+    <string name="shortcut_hub_short">استديو +</string>
+    <string name="shortcut_hub_long">أدوات وخدمات الاستديو الإبداعية</string>
+
+    <!-- Widget -->
+    <string name="widget_name">استديو بلس +</string>
+    <string name="widget_quick_open">فتح المعرض</string>
+    <string name="widget_tools">الأدوات</string>
+</resources>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Studio Plus +</string>
+    <string name="tab_pictures">Pictures</string>
+    <string name="tab_albums">Albums</string>
+    <string name="tab_studio_plus">Studio +</string>
+    <string name="empty_gallery_title">No media found</string>
+    <string name="empty_gallery_desc">Photos and videos on your device will appear here</string>
+    <string name="permission_required_title">Storage Permission Required</string>
+    <string name="permission_required_desc">Allow Studio Plus + to access photos and videos so you can browse, edit, and play your media.</string>
+    <string name="grant_permission">Grant Access</string>
+    <string name="action_share">Share</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_favorite">Favorite</string>
+    <string name="action_details">Details</string>
+    <string name="action_edit">Edit</string>
+
+    <!-- App Shortcuts -->
+    <string name="shortcut_pictures_short">Pictures</string>
+    <string name="shortcut_pictures_long">View all pictures and videos</string>
+    <string name="shortcut_albums_short">Albums</string>
+    <string name="shortcut_albums_long">Browse media albums</string>
+    <string name="shortcut_hub_short">Studio +</string>
+    <string name="shortcut_hub_long">Creative Studio tools</string>
+
+    <!-- Widget -->
+    <string name="widget_name">Studio Plus +</string>
+    <string name="widget_quick_open">Open Gallery</string>
+    <string name="widget_tools">Tools</string>
+</resources>
